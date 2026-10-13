@@ -1,0 +1,34 @@
+
+# do not touch  
+cmake_minimum_required(VERSION 3.10.0)
+
+# NameOfTheProject
+project(FDB_Renderer VERSION 1.0.0)
+
+# DoNotTouch
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/app/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/app/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/app/bin)
+
+
+
+# if (WIN32)
+#     # vcpkg configuration
+#     set(VCPKG_ROOT $ENV{VCPKG_ROOT_DIR})
+#     set(VCPKG_TARGET_TRIPLET "x64-windows")
+# endif (WIN32)
+
+# if(VCPKG_ROOT)
+#     include(${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
+# endif()
+# set_property(GLOBAL PROPERTY USE_FOLDERS ON) 
+
+# Add you project here
+
+add_subdirectory(Sample)
+add_subdirectory(Engine)
+
+# Define the StartUp project
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Sample)

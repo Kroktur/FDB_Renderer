@@ -1,0 +1,100 @@
+# Name the project here
+project(Engine)
+
+# do not touch
+set(HEADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Build/app/bin)
+
+file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS
+    "${HEADER_DIR}/*.h"
+    "${HEADER_DIR}/*.hpp"
+)
+
+file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
+    "${SOURCE_DIR}/*.cpp"
+)
+
+add_library(${PROJECT_NAME}
+    ${SOURCES}
+    ${HEADERS}
+)
+
+source_group(
+    TREE ${HEADER_DIR}
+    PREFIX "Header Files"
+    FILES ${HEADERS}
+)
+
+source_group(
+    TREE ${SOURCE_DIR}
+    PREFIX "Source Files"
+    FILES ${SOURCES}
+)
+
+# Automatic Lib here
+# Dont forget to link lib
+
+# find Packages
+# exemple bellow 
+
+# find_package(SFML COMPONENTS 
+#    System
+#    CONFIG REQUIRED
+# )
+
+
+# Manual Lib here
+# Dont forget to link lib
+# Dont forget to include header lib
+#Copy Dll exemple ONLY MANUAL LIB
+
+# Set Variable for All_LIB
+
+# set(MYLIB ${CMAKE_CURRENT_SOURCE_DIR}/YourlibFolderPath)
+# set(MYLIB_HEADER ${MYLIB}/includeFolder)
+# set(MYLIB_LIB ${MYLIB}/libFolder)
+
+# # Debug
+# file(COPY "${MYLIB_LIB}/Yourlib.dll"
+#      DESTINATION "${EXECUTABLE_OUTPUT_PATH}/Debug")
+
+# # Release
+# file(COPY "${MYLIB_LIB}/Yourlib.dll"
+#      DESTINATION "${EXECUTABLE_OUTPUT_PATH}/Release")
+
+
+# target your All Include here 
+# exemple bellow
+
+#SDL2
+ set(SDL3 ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/sdl3)
+ set(SDL3_HEADER ${SDL3}/include)
+#GLM
+set(GLM ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/glm)
+set(GLM_HEADER ${GLM}/include)
+
+target_include_directories(${PROJECT_NAME}
+    PUBLIC 
+    ${HEADER_DIR}
+  # ${MYLIB_HEADER}
+    ${SDL3_HEADER}
+    ${GLM_HEADER}
+    PRIVATE
+  # ${MYLIB_HEADER}
+)
+
+# target your All libraries here 
+# exemple bellow
+
+target_link_libraries(${PROJECT_NAME}
+    PUBLIC
+  # YourLib
+  # ${MYLIB_LIB}/YourLib.lib
+    PRIVATE
+  # YourLib
+  # ${MYLIB_LIB}/YourLib.lib
+)
+# Choisir le nom du dossier 
+set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "Engine")
