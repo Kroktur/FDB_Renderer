@@ -47,9 +47,12 @@ add_executable(${PROJECT_NAME}
 # target your All Include here 
 # exemple bellow
 
-#SDL2
+#SDL3
  set(SDL3 ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/sdl3)
  set(SDL3_HEADER ${SDL3}/include)
+ set(SDL3_LIB ${SDL3}/lib)
+
+
 #GLM
 set(GLM ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/glm)
 set(GLM_HEADER ${GLM}/include)
@@ -70,7 +73,11 @@ target_link_libraries(${PROJECT_NAME}
     PUBLIC
     Engine
   # YourLib
-  # ${MYLIB_LIB}/YourLib.lib
+  ${SDL3_LIB}/SDL3-static.lib
+  winmm.lib
+  Setupapi.lib
+  imm32.lib
+  version.lib
     PRIVATE
   # YourLib
   # ${MYLIB_LIB}/YourLib.lib
