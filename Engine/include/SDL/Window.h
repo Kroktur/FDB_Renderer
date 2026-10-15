@@ -4,7 +4,8 @@
 #include <stdexcept>
 #include <GLM/detail/type_vec2.hpp>
 #include "SDL/sdl.h"
-
+#include "Core/EventBus.h"
+#include "SDL/Event.h"
 namespace FDB::Sdl
 {
 	enum class WindowMode : std::uint8_t
@@ -32,6 +33,8 @@ namespace FDB::Sdl
 		void SetSize(glm::vec<2, std::int32_t> pos) const;
 
 		[[nodiscard]] glm::vec<2, std::int32_t> GetSize() const;
+		[[nodiscard]] glm::vec<2, std::int32_t> GetPixelSize() const;
+
 
 		[[nodiscard]] float GetAspectRatio() const;
 
@@ -66,8 +69,12 @@ namespace FDB::Sdl
 		[[nodiscard]] operator bool() const;
 
 		[[nodiscard]] SDL_WindowID GetId() const;
+		bool ShouldClose() const;
+		SDL_Window* GetSdlWindow();
 	private:
-
+		void CallBack(const Event::WindowClose& event);
+		Core::EventBus<Event::WindowClose>::BusHandle m_handle;
+		bool m_shouldClose;
 		SDL_Window* m_window;
 	};
 }

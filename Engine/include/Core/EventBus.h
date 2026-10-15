@@ -27,13 +27,13 @@ namespace FDB::Core
 			id_type gen = invalidHandle;
 		};
 
-		static void UnSubscribe(const BusHandle& handle)
+		static BusHandle UnSubscribe(const BusHandle& handle)
 		{
 			if (m_subscriptions.size() <= handle.id)
-				return;
+				return {};
 			Subscription& callBackContainer = m_subscriptions[handle.id];
 			if (callBackContainer.gen != handle.gen)
-				return;
+				return {};
 
 			++callBackContainer.gen;
 
@@ -41,6 +41,7 @@ namespace FDB::Core
 			callBackContainer.callBack = nullptr;
 
 			m_recycledIds.push_back(handle.id);
+			return {};
 		}
 		template<typename T, void(T::* fn)(event_type)>
 		[[nodiscard]] static BusHandle SubScribe(T* obj)
@@ -98,16 +99,15 @@ namespace FDB::Core
 				m_recycledIds.pop_back();
 				return  BusHandle{ id,m_subscriptions[id].gen };
 			}
-			else
-			{
 				id_type id = m_subscriptions.size();
 				m_subscriptions.push_back(Subscription{});
 				return  BusHandle{ id,m_subscriptions[id].gen };
-			}
+			
 
 		}
 		static std::vector<Subscription> m_subscriptions;
 		static std::vector<id_type> m_recycledIds;
+
 	};
 	template<typename T>
 	inline std::vector<typename EventBus<T>::Subscription> EventBus<T>::m_subscriptions = {};

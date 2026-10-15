@@ -1,29 +1,48 @@
 #include "SDL/Window.h"
 
+
+
 namespace FDB::Sdl
 {
 
 
-	Window::Window(const char* title, glm::vec<2, std::uint32_t> size, SDL_WindowFlags flags) : m_window(nullptr)
+	Window::Window(const char* title, glm::vec<2, std::uint32_t> size, SDL_WindowFlags flags) : m_window(nullptr), m_shouldClose(false)
 	{
 		m_window = SDL_CreateWindow(title, static_cast<int>(size.x), static_cast<int>(size.y), flags);
+		m_handle = Core::EventBus<Event::WindowClose>::SubScribe<Window,&Window::CallBack>(this);
 	}
 
-	Window::Window(Window&& other) noexcept : m_window(other.m_window)
+
+
+	Window::Window(Window&& other) noexcept : m_window(other.m_window),m_shouldClose(other.m_shouldClose),m_handle(other.m_handle)
 	{
 		other.m_window = nullptr;
+		other.m_shouldClose = false;
+		m_handle = Core::EventBus<Event::WindowClose>::SubScribe<Window,&Window::CallBack>(this);
+		Core::EventBus<Event::WindowClose>::UnSubscribe(other.m_handle);
+		other.m_handle = {};
 	}
 
 	Window::~Window()
 	{
-		if (m_window)
-			SDL_DestroyWindow(m_window);
+		this->CloseWindow();
 	}
 
 	Window& Window::operator=(Window&& other) noexcept
 	{
+		if (this == &other)
+			return *this;
+
+		CloseWindow();
+		
 		m_window = other.m_window;
 		other.m_window = nullptr;
+		m_shouldClose = other.m_shouldClose;
+		other.m_shouldClose = false;
+		m_handle = Core::EventBus<Event::WindowClose>::SubScribe<Window,&Window::CallBack>(this);
+		Core::EventBus<Event::WindowClose>::UnSubscribe(other.m_handle);
+		other.m_handle = {};
+
 		return *this;
 	}
 
@@ -51,6 +70,14 @@ namespace FDB::Sdl
 	{
 		int x, y;
 		if (!SDL_GetWindowSize(m_window, &x, &y))
+			throw std::logic_error("GetSize failed");
+		return glm::vec<2, std::int32_t>{static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)};
+	}
+
+	glm::vec<2, std::int32_t> Window::GetPixelSize() const
+	{
+		int x, y;
+		if (!SDL_GetWindowSizeInPixels(m_window, &x, &y))
 			throw std::logic_error("GetSize failed");
 		return glm::vec<2, std::int32_t>{static_cast<std::int32_t>(x), static_cast<std::int32_t>(y)};
 	}
@@ -127,6 +154,9 @@ namespace FDB::Sdl
 
 	void Window::CloseWindow()
 	{
+		if (!m_window)
+			return;
+		Core::EventBus<Event::WindowClose>::UnSubscribe(m_handle);
 		SDL_DestroyWindow(m_window);
 		m_window = nullptr;
 	}
@@ -144,5 +174,21 @@ namespace FDB::Sdl
 	SDL_WindowID Window::GetId() const
 	{
 		return SDL_GetWindowID(m_window);
+	}
+
+	bool Window::ShouldClose() const
+	{
+		return m_shouldClose;
+	}
+
+	SDL_Window* Window::GetSdlWindow()
+	{
+		return m_window;
+	}
+
+	void Window::CallBack(const Event::WindowClose& event)
+	{
+		if (event.id == this->GetId())
+			m_shouldClose = true;
 	}
 }

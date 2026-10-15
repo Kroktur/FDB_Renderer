@@ -3,6 +3,7 @@
 
 #include "Core/EventBus.h"
 #include "SDL/sdl.h"
+#include "GLM/vec2.hpp"
 
 namespace FDB::Sdl::Event
 {
@@ -13,9 +14,6 @@ namespace FDB::Sdl::Event
 	struct WindowResizePixel { SDL_WindowID id; glm::vec<2, std::int32_t> pixels; };
 	struct WindowMinimize { SDL_WindowID id; bool minimize; };
 	struct WindowFocus { SDL_WindowID id; bool focus;};
-	
-
-
 
 	struct DefaultManager
 	{
