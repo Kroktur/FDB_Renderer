@@ -1,8 +1,9 @@
 #ifndef FDB_SDL_EVENTF
 #define FDB_SDL_EVENTF
 
+#include <SDL3/SDL_events.h>
+#include <SDL3/SDL_video.h>
 #include "Core/EventBus.h"
-#include "SDL/sdl.h"
 #include "GLM/vec2.hpp"
 
 namespace FDB::Sdl::Event

@@ -1,6 +1,5 @@
 #include "SDL/Window.h"
-
-
+#include "SDL3/SDL_video.h"
 
 namespace FDB::Sdl
 {

@@ -3,7 +3,6 @@
 
 #include <stdexcept>
 #include <GLM/detail/type_vec2.hpp>
-#include "SDL/sdl.h"
 #include "Core/EventBus.h"
 #include "SDL/Event.h"
 namespace FDB::Sdl

@@ -2,10 +2,12 @@
 #define FDB_SDL_APPLICATIONF
 
 #include <stdexcept>
+#include <SDL3/SDL_events.h>
+#include <SDL3/SDL_init.h>
 
 #include "Event.h"
 #include "Core/EventBus.h"
-#include "SDL/sdl.h"
+
 
 namespace FDB::Sdl
 {
