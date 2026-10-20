@@ -1,3 +1,5 @@
+#include "../header_file/Pipeline.h"
+
 
 #include <string>
 
@@ -9,7 +11,8 @@
 #include "SDL/Window.h"
 #include "SDL/Texture.h"
 #include "SDL3/SDL_timer.h"
-
+#include "../header_file/Pipeline.h"
+#include "../header_file/Transform.h"
 
 
 
@@ -230,6 +233,8 @@ int main(int argc, char* argv[])
 		renderer.Present();
 	}
 	FDB::Sdl::Application::Destroy();
+	//Pipeline::createSommetList();
+	return 0;
 }
 
 
