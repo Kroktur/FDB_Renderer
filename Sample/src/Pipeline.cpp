@@ -49,6 +49,7 @@ void Pipeline::createSommetList()
     }
 	auto clippedTriangles = VertexProcessing::Clipping(processedTriangles);
 	auto ndcTriangles = VertexProcessing::perspectiveDivide(clippedTriangles);
+	auto screenTriangles = VertexProcessing::viewportTransform(ndcTriangles, 800.0f, 600.0f);
 }
 
 std::vector<VertexProcessing::ProcessedTriangle> VertexProcessing::process(const std::vector<Triangle>& triangles, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection)
@@ -117,4 +118,25 @@ std::vector<VertexProcessing::ProcessedTriangle> VertexProcessing::perspectiveDi
 		output.push_back(triangle);
 	}
     return output;
+}
+
+std::vector<VertexProcessing::ProcessedTriangle> VertexProcessing::viewportTransform(const std::vector<VertexProcessing::ProcessedTriangle>& ndcTriangles, float width, float height)
+{
+	std::vector<ProcessedTriangle> output;
+
+	for (const auto& triangle : ndcTriangles) {
+        VertexProcessing::ProcessedTriangle transformedTriangle;
+        for (const auto& vertex : triangle) {
+            ProcessedVertex transformedVertex = vertex;
+            // Convert NDC to screen coordinates
+            transformedVertex.clipPosition.x = (vertex.clipPosition.x + 1.0f) * 0.5f * width;
+            transformedVertex.clipPosition.y = (1.0f - vertex.clipPosition.y) * 0.5f * height; // Invert Y for screen space
+            transformedVertex.clipPosition.z = vertex.clipPosition.z; // Z remains the same
+            transformedVertex.clipPosition.w = 1.0f; // W is set to 1 after perspective divide
+            transformedTriangle.push_back(transformedVertex);
+			std::cout << "Vertex after viewport transform: (" << transformedVertex.clipPosition.x << ", " << transformedVertex.clipPosition.y << ", " << transformedVertex.clipPosition.z << ", " << transformedVertex.clipPosition.w << ")\n";
+        }
+        output.push_back(transformedTriangle);
+    }
+	return output;
 }

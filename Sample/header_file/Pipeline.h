@@ -38,6 +38,7 @@ public:
 	static std::vector<ProcessedTriangle> process(const std::vector<Triangle>& triangles, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection);
 	static std::vector<VertexProcessing::ProcessedTriangle> Clipping(const std::vector<VertexProcessing::ProcessedTriangle>& processedTriangles);
 	static std::vector<VertexProcessing::ProcessedTriangle> perspectiveDivide(std::vector<VertexProcessing::ProcessedTriangle>& processedTriangles);
+	static std::vector<VertexProcessing::ProcessedTriangle> viewportTransform(const std::vector<VertexProcessing::ProcessedTriangle>& ndcTriangles, float width, float height);
 
 
 };
