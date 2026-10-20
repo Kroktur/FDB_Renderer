@@ -19,6 +19,30 @@ public:
 	}
 };
 
+
+struct ProcessedVertex
+{
+	glm::vec4 clipPosition;
+	glm::vec3 normal;
+	glm::vec2 uv;
+	glm::vec4 color;
+};
+
+
+class VertexProcessing
+{
+public:
+	using Triangle = std::vector<Transform::Vertex>;
+	using ProcessedTriangle = std::vector<ProcessedVertex>;
+
+	static std::vector<ProcessedTriangle> process(const std::vector<Triangle>& triangles, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection);
+	static std::vector<VertexProcessing::ProcessedTriangle> Clipping(const std::vector<VertexProcessing::ProcessedTriangle>& processedTriangles);
+	static std::vector<VertexProcessing::ProcessedTriangle> perspectiveDivide(std::vector<VertexProcessing::ProcessedTriangle>& processedTriangles);
+
+
+};
+
+
 class Pipeline {
 public:
 	static void createSommetList();
@@ -28,19 +52,16 @@ public:
 	{
 		view = glm::perspective(glm::radians(fov), 800.0f / 600.0f, near, far);
 	}
-
-	void getClip()
-	{
-		// This function can be used to get the clip space transformation if needed
-	}
-
 	
 
 private:
 	glm::mat4 view;
+
 	glm::vec4 pos;
 	glm::vec3 color;
+
 	float near;
 	float far;
 	float fov;
 };
+
