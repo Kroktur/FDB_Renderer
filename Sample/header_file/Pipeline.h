@@ -5,6 +5,8 @@
 #include "GLM/gtc/matrix_transform.hpp"
 #include "../header_file/Transform.h"
 #include <vector>
+#include "Core/Rect.h"
+
 
 class InputAssembler {
 private:
@@ -22,7 +24,7 @@ public:
 
 struct ProcessedVertex
 {
-	glm::vec4 clipPosition;
+	glm::vec4 pos;
 	glm::vec3 normal;
 	glm::vec2 uv;
 	glm::vec4 color;
@@ -46,7 +48,7 @@ public:
 
 class Pipeline {
 public:
-	static void createSommetList();
+	static std::vector<VertexProcessing::ProcessedTriangle> createSommetList(const Transform::Vertex& a, const Transform::Vertex& b, const Transform::Vertex& c, FDB::Rect<std::int32_t> port);
 	Pipeline(glm::vec4 position, glm::vec3 colorPixel) : pos(position), color(colorPixel),view(glm::mat4(1.0f)), near(0.1f), far(100.0f), fov(45.0f) {}
 	
 	void getView() 

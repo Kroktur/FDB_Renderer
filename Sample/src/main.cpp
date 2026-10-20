@@ -1,6 +1,3 @@
-#include "../header_file/Pipeline.h"
-
-
 #include <string>
 
 #include "Core/Rect.h"
@@ -16,20 +13,13 @@
 
 
 
-
-
-struct Vertex
-{
-	glm::vec4 pos;
-	glm::vec<4,float> color;
-};
-
-
-
 struct Rasterizer
 {
-	static void Compute(Vertex a,Vertex b, Vertex c,const FDB::Rect<std::int32_t>& viewPort,std::uint32_t* buffer)
+	static void Compute(std::vector<VertexProcessing::ProcessedTriangle> triangles,const FDB::Rect<std::int32_t>& viewPort,std::uint32_t* buffer)
 	{
+		auto a = triangles[0][0];
+		auto b = triangles[0][1];
+		auto c = triangles[0][2];
 		// find bounding box
 		int minX = std::max(viewPort.x, static_cast<int>(std::min({ a.pos.x, b.pos.x, c.pos.x })));
 		int maxX = std::min(viewPort.x + viewPort.width - 1, static_cast<int>(std::max({ a.pos.x, b.pos.x, c.pos.x })));
@@ -145,11 +135,6 @@ struct Rasterizer
 	}
 };
 
-
-
-
-
-
 static constexpr std::int32_t windowWidth = 800;
 static constexpr std::int32_t windowHeight= 600;
 
@@ -174,7 +159,7 @@ int main(int argc, char* argv[])
 	std::vector<std::uint32_t> frameBuffer;
 	frameBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
 
-	Vertex a,b,c,d;
+	Transform::Vertex a,b,c,d;
 	Uint64 lastTime = SDL_GetTicks();
 	std::uint32_t frameCount = 0;
 	while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
@@ -205,18 +190,12 @@ int main(int argc, char* argv[])
 		std::memset(frameBuffer.data(), 0, frameBuffer.size() * sizeof(std::uint32_t));
 		//TODO vertex gestion
 		{
-			a.pos.x = 0;
-			a.pos.y = static_cast<float>(size.y - 1);
-			a.color = { 1,0,0,1 };
-			b.pos.x = 0;
-			b.pos.y = 0;
-			b.color = { 0,1,0,1 };
-			c.pos.x = static_cast<float>(size.x - 1);
-			c.pos.y = 0;
-			c.color = { 0,0,1,1 };
-			d.pos.x = static_cast<float>(size.x - 1);
-			d.pos.y = static_cast<float>(size.y - 1);
-			d.color = { 1,1,1,1 };
+			a.pos = glm::vec4(-1.5f, -1.0f, -100.0f, 1.0f);
+			b.pos = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+			c.pos = glm::vec4(1.5f, -1.0f, 0.0f, 1.0f);
+			a.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+			b.color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+			c.color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
 		}
 
 
@@ -225,7 +204,8 @@ int main(int argc, char* argv[])
 		port.height = size.y;
 
 		renderer.Clear(FDB::Color::black8);
-		Rasterizer::Compute(a, b, c, port, frameBuffer.data());
+		auto processedTriangles = Pipeline::createSommetList(a, b, c, port);
+		Rasterizer::Compute(processedTriangles, port, frameBuffer.data());
 		
 
 		texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
