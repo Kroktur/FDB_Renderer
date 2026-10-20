@@ -1,6 +1,5 @@
-#include <string>
 
-#include "Core/Rect.h"
+//#include "Core/Rect.h"
 #include "GLM/vec4.hpp"
 #include "GLM/vec3.hpp"
 #include "SDL/Application.h"
@@ -8,8 +7,9 @@
 #include "SDL/Window.h"
 #include "SDL/Texture.h"
 #include "SDL3/SDL_timer.h"
-#include "../header_file/Pipeline.h"
-#include "../header_file/Transform.h"
+#include <string>
+#include "Pipeline/Pipeline.h"
+#include "Pipeline/Transform.h"
 
 
 
@@ -159,7 +159,7 @@ int main(int argc, char* argv[])
 	std::vector<std::uint32_t> frameBuffer;
 	frameBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
 
-	Transform::Vertex a,b,c,d;
+	Transform::Vertex a,b,c;
 	Uint64 lastTime = SDL_GetTicks();
 	std::uint32_t frameCount = 0;
 	while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())

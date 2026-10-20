@@ -1,12 +1,12 @@
 #include "glm/vec4.hpp"
 #include "glm/vec3.hpp"
-#include "../header_file/Pipeline.h"
-#include "../header_file/Transform.h"
+#include "Pipeline/Pipeline.h"
+#include "Pipeline/Transform.h"
 #include <vector>
-#include "Core/Rect.h"
+//#include "Core/Rect.h"
 #include <iostream>
 
-std::vector<VertexProcessing::ProcessedTriangle> Pipeline::createSommetList(const Transform::Vertex& a, const Transform::Vertex& b, const Transform::Vertex& c, FDB::Rect<std::int32_t> port)
+std::vector<VertexProcessing::ProcessedTriangle> Pipeline::createSommetList(const Transform::Vertex& a, const Transform::Vertex& b, const Transform::Vertex& c, FDB::Rect<std::int32_t>& port)
 {
 	Transform transform;
 	Transform::Mesh mesh;
@@ -18,13 +18,13 @@ std::vector<VertexProcessing::ProcessedTriangle> Pipeline::createSommetList(cons
     
     InputAssembler inputAssembler(mesh);
     const auto& triangles = inputAssembler.getTriangles();
-    std::cout << "Nombre de triangles : " << triangles.size() << '\n';
+    //std::cout << "Nombre de triangles : " << triangles.size() << '\n';
     
     for (size_t i = 0; i < triangles.size(); ++i) {
-        std::cout << "Triangle " << i << '\n';
+        //std::cout << "Triangle " << i << '\n';
         for (const auto& vertex : triangles[i])
         {
-            std::cout << "  Position : (" << vertex.pos.x << ", " << vertex.pos.y << ", " << vertex.pos.z << ")\n";
+            //std::cout << "  Position : (" << vertex.pos.x << ", " << vertex.pos.y << ", " << vertex.pos.z << ")\n";
         }
     }
 
@@ -34,12 +34,12 @@ std::vector<VertexProcessing::ProcessedTriangle> Pipeline::createSommetList(cons
     auto processedTriangles = VertexProcessing::process(triangles, model, view, projection); // place all this value for the vertexProcessing
 
     for (size_t i = 0; i < processedTriangles.size(); ++i) {
-        std::cout << "Triangle " << i << '\n';
+        //std::cout << "Triangle " << i << '\n';
 
         for (size_t j = 0; j < processedTriangles[i].size(); ++j) {
             const glm::vec4& p = processedTriangles[i][j].pos;
 
-            std::cout << "  Sommet " << j  << " : (" << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ")\n";
+            //std::cout << "  Sommet " << j  << " : (" << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ")\n";
         }
     }
 	auto clippedTriangles = VertexProcessing::Clipping(processedTriangles);
@@ -82,14 +82,13 @@ std::vector<VertexProcessing::ProcessedTriangle> VertexProcessing::Clipping(cons
     for (const auto& triangle : processedTriangles) {
         for (const auto& vertex : triangle) {
             const glm::vec4& p = vertex.pos;
-            // Check if the vertex is inside the clip space
             if (p.x < -p.w || p.x > p.w || p.y < -p.w || p.y > p.w || p.z < -p.w || p.z > p.w) {
-                std::cout << "Vertex (" << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ") is outside the clip space.\n";
+                //std::cout << "Vertex (" << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ") is outside the clip space.\n";
             } else {
-                std::cout << "Vertex (" << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ") is inside the clip space.\n";
+                //std::cout << "Vertex (" << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ") is inside the clip space.\n";
             }
         }
-		output.push_back(triangle); // For now, we just pass the triangle through without clipping
+		output.push_back(triangle);
     }
     return output;
 }
@@ -105,7 +104,7 @@ std::vector<VertexProcessing::ProcessedTriangle> VertexProcessing::perspectiveDi
                 p.x /= p.w;
                 p.y /= p.w;
                 p.z /= p.w;
-				std::cout << "Vertex after perspective divide: (" << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ")\n";
+				//std::cout << "Vertex after perspective divide: (" << p.x << ", " << p.y << ", " << p.z << ", " << p.w << ")\n";
             }
         }
 		output.push_back(triangle);
@@ -126,7 +125,7 @@ std::vector<VertexProcessing::ProcessedTriangle> VertexProcessing::viewportTrans
             transformedVertex.pos.y = (1.0f - vertex.pos.y) * 0.5f * height; // Invert Y for screen space
             transformedVertex.pos.z = vertex.pos.z; // Z remains the same
             transformedTriangle.push_back(transformedVertex);
-			std::cout << "Vertex after viewport transform: (" << transformedVertex.pos.x << ", " << transformedVertex.pos.y << ", " << transformedVertex.pos.z << ", " << transformedVertex.pos.w << ")\n";
+			//std::cout << "Vertex after viewport transform: (" << transformedVertex.pos.x << ", " << transformedVertex.pos.y << ", " << transformedVertex.pos.z << ", " << transformedVertex.pos.w << ")\n";
         }
         output.push_back(transformedTriangle);
     }
