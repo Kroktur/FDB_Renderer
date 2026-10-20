@@ -15,11 +15,13 @@
 
 struct Rasterizer
 {
-	static void Compute(std::vector<VertexProcessing::ProcessedTriangle> triangles,const FDB::Rect<std::int32_t>& viewPort,std::uint32_t* buffer)
+	static void Compute(std::vector<Transform::Mesh>& triangles,const FDB::Rect<std::int32_t>& viewPort,std::uint32_t* buffer)
 	{
-		auto a = triangles[0][0];
-		auto b = triangles[0][1];
-		auto c = triangles[0][2];
+		if (triangles.empty() || triangles[0].vertices.size() < 3)
+			return;
+		auto a = triangles[0].vertices[0];
+		auto b = triangles[0].vertices[1];
+		auto c = triangles[0].vertices[2];
 		// find bounding box
 		int minX = std::max(viewPort.x, static_cast<int>(std::min({ a.pos.x, b.pos.x, c.pos.x })));
 		int maxX = std::min(viewPort.x + viewPort.width - 1, static_cast<int>(std::max({ a.pos.x, b.pos.x, c.pos.x })));
@@ -188,6 +190,8 @@ int main(int argc, char* argv[])
 		}
 
 		std::memset(frameBuffer.data(), 0, frameBuffer.size() * sizeof(std::uint32_t));
+		std::vector<Transform::Vertex> vertexList;
+		std::vector<unsigned int> indices;
 		//TODO vertex gestion
 		{
 			a.pos = glm::vec4(-1.5f, -1.0f, -100.0f, 1.0f);
@@ -197,6 +201,13 @@ int main(int argc, char* argv[])
 			b.color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
 			c.color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
 		}
+		vertexList.push_back(a);
+		vertexList.push_back(b);
+		vertexList.push_back(c);
+		indices.push_back(0);
+		indices.push_back(1);
+		indices.push_back(2);
+
 
 
 		FDB::Rect<std::int32_t> port;
@@ -204,8 +215,23 @@ int main(int argc, char* argv[])
 		port.height = size.y;
 
 		renderer.Clear(FDB::Color::black8);
-		auto processedTriangles = Pipeline::createSommetList(a, b, c, port);
-		Rasterizer::Compute(processedTriangles, port, frameBuffer.data());
+
+		Transform::Mesh mesh;
+		mesh.vertices = vertexList;
+		mesh.indices = indices;
+
+		// Un seul mesh contenant les 3 sommets et les indices.
+		std::vector<Transform::Mesh> meshes;
+		meshes.push_back(mesh);
+
+		// La pipeline transforme le mesh une seule fois.
+		auto processedTriangles =
+			Pipeline::createSommetList(meshes, indices, port);
+
+		// Ne pas appeler le rasterizer si aucun triangle n'est retourné.
+		if (!processedTriangles.empty()) {
+			Rasterizer::Compute(processedTriangles, port, frameBuffer.data());
+		}
 		
 
 		texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
