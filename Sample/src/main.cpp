@@ -220,15 +220,9 @@ int main(int argc, char* argv[])
 		mesh.vertices = vertexList;
 		mesh.indices = indices;
 
-		// Un seul mesh contenant les 3 sommets et les indices.
 		std::vector<Transform::Mesh> meshes;
 		meshes.push_back(mesh);
-
-		// La pipeline transforme le mesh une seule fois.
-		auto processedTriangles =
-			Pipeline::createSommetList(meshes, indices, port);
-
-		// Ne pas appeler le rasterizer si aucun triangle n'est retourné.
+		auto processedTriangles = Pipeline::createSommetList(meshes, indices, port);
 		if (!processedTriangles.empty()) {
 			Rasterizer::Compute(processedTriangles, port, frameBuffer.data());
 		}
