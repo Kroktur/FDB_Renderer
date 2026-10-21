@@ -818,9 +818,6 @@ struct Atribut
 
  				Loop(triangle,box, data,baseInvW,invArea,inter, image);
 			}
-
-
-
 			static void Loop(const triangle_t& triangle,const box2_t<std::int32_t>& box,const EdgesData& baseEdgeData,const glm::vec<3,float>& baseInvW,float invArea,const  std::array<Interpolateur<vertex_t>, 3>& startInter,Image& image)
 			{
 
@@ -929,7 +926,10 @@ struct Atribut
 	static constexpr std::int32_t renderWidth = 320;
 
 	static constexpr std::int32_t renderHeight = 240;
-
+	// TODO regroupe interpolateur
+	// TODO passer en full template
+    // TODO faire le test top left
+    // TODO bouger dans un fichier a part 
 	int main(int argc, char* argv[])
 	{
 		FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
