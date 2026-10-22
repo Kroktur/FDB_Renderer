@@ -481,6 +481,8 @@ struct Atribut
 
 	namespace FDB::Pipeline::Rasterizer
 	{
+		enum class BlendOp;
+
 		struct EdgesData
 		{
 			glm::vec<3, float> edgesFn;
@@ -744,7 +746,130 @@ struct Atribut
 		template<typename fragmentT,FragmentState state,typename FN> 
 		concept ValidFragmentFunction = std::is_invocable_r_v<fragment_output_t<state>, FN, const fragmentT&, const glm::vec<2, std::int32_t>&, float>;
 	
+		
+		enum class BlendFactor
+		{
+			Zero,
+			rOne,
+			SrcColor,
+			OneMinusSrcColor,
+			DstColor,
+			OneMinusDstColor,
+			SrcAlpha,
+			OneMinusSrcAlpha,
+			DstAlpha,
+			OneMinusDstAlpha
+		};
 
+		enum class BlendOp
+		{
+			Add,
+			Sub,
+			RSub,
+			Min,
+			Max
+		};
+
+		struct ColorHelper
+		{
+			template<BlendFactor dataT>
+			static glm::vec<4, float> FactorToColor(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& dstColor)
+			{
+
+				if constexpr (dataT == BlendFactor::Zero)
+				{
+					return glm::vec<4, float>(0.f);
+				}
+				else if constexpr (dataT == BlendFactor::rOne)
+				{
+					return glm::vec<4, float>(1.f);
+				}
+				else if constexpr (dataT == BlendFactor::SrcColor)
+				{
+					return srcColor;
+				}
+				else if constexpr (dataT == BlendFactor::OneMinusSrcColor)
+				{
+					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
+					return  vec1 - srcColor;
+				}
+				else if constexpr (dataT == BlendFactor::DstColor)
+				{
+					return dstColor;
+				}
+				else if constexpr (dataT == BlendFactor::OneMinusDstColor)
+				{
+					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
+					return vec1 - dstColor;
+				}
+				else if constexpr (dataT == BlendFactor::SrcAlpha)
+				{
+					return glm::vec<4, float>(srcColor.a);
+				}
+				else if constexpr (dataT == BlendFactor::OneMinusSrcAlpha)
+				{
+					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
+					return vec1 - glm::vec<4, float>(srcColor.a);
+				}
+				else if constexpr (dataT == BlendFactor::DstAlpha)
+				{
+					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
+					return glm::vec<4, float>(dstColor.a);
+				}
+				else
+				{
+					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
+					return vec1 - glm::vec<4, float>(dstColor.a);
+				}
+			}
+			template<BlendOp opT>
+			static glm::vec<4,float> ColorToBlend(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& srcFactor, const glm::vec<4, float>& dstColor, const glm::vec<4, float>& dstFactor)
+			{
+				if constexpr (opT == BlendOp::Add)
+				{
+					return srcColor* srcFactor + dstColor * dstFactor;
+				}
+				else if constexpr (opT == BlendOp::Sub)
+				{
+					return srcColor * srcFactor - dstColor * dstFactor;
+				}
+				else if constexpr (opT == BlendOp::RSub)
+				{
+					return   dstColor * dstFactor - srcColor * srcFactor;
+				}
+				else if constexpr (opT == BlendOp::Min)
+				{
+					glm::vec<4, float> result;
+					result.r = std::min(srcColor.r, dstColor.r);
+					result.g = std::min(srcColor.g, dstColor.g);
+					result.b = std::min(srcColor.b, dstColor.b);
+					result.a = std::min(srcColor.a, dstColor.a);
+					return result;
+				}
+				else
+				{
+					glm::vec<4, float> result;
+					result.r = std::max(srcColor.r, dstColor.r);
+					result.g = std::max(srcColor.g, dstColor.g);
+					result.b = std::max(srcColor.b, dstColor.b);
+					result.a = std::max(srcColor.a, dstColor.a);
+					return result;
+				}
+			}
+		};
+	
+		template<BlendFactor factorSrcT,BlendFactor factorDstT,BlendOp opT>
+		struct BlendData
+		{
+			using color_t = glm::vec<4, float>;
+			static color_t Blend(const color_t& srcColor ,const color_t& dstColor)
+			{
+				return ColorHelper::ColorToBlend<opT>(srcColor, ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor), dstColor, ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor));
+			}
+		private:
+			
+
+		};
 		
 	
 		template<FDB::Pipeline::Attribute::ValidVertexT VertexT> 
@@ -1247,7 +1372,6 @@ struct Atribut
 					printf("%s : %.4f ms/appel (%d iterations, %.2f ms total)\n",
 						name, totalMs / n, n, totalMs);
 				};
-
 			//bench([&] { FDB::Pipeline::Rasterizer::TriangleRasterizer<Vertex>::Compute<Test2::FragmentState::Keep>({ a,c,b }, port, image, [&](const Vertex& vertex, const glm::vec<2, std::int32_t>& pixel, float) -> Test2::fragment_output_t<Test2::FragmentState::Keep> { return  Test2::fragment_output_t<Test2::FragmentState::Keep>::Color(vertex.color);});}, "Rasterizer V2");
 			//bench([&] { Rasterizer::Compute<Vertex, VertexInterpolation>({ a, c, b }, port, frameBuffer.data(), zBuffer.data(), size.x); }, "Rasterizer V1");
 			//Rasterizer::Compute<Vertex,VertexInterpolation>({ a, c, b }, port, frameBuffer.data(),zBuffer.data(), size.x);
