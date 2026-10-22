@@ -1,6 +1,7 @@
 
 	#include <iostream>
-	#include <string>
+#include <mutex>
+#include <string>
 
 	#include "Core/Rect.h"
 	#include "GLM/vec4.hpp"
@@ -33,7 +34,6 @@ struct Atribut
 
 
 	
-
 	template<typename T,size_t N>
 	struct Box
 	{
@@ -43,7 +43,13 @@ struct Atribut
 	};
 	template<typename T>
 	using box2_t = Box<T, 2>;
+	template<typename T>
+	using box3_t = Box<T, 3>;
 
+	namespace OLD
+	{
+		
+	
 
 	constexpr int SubPixelBits = 8;
 	constexpr int SubPixelScale = 1 << SubPixelBits;
@@ -318,92 +324,162 @@ struct Atribut
 
 	namespace Test::Attribute
 	{
-		enum class format : std::uint32_t
+		
+	}
+
+	
+
+	//struct VertexInterpolation
+	//{
+	//	 VertexInterpolation(const triangle& tri, const glm::vec<3, float>& invW)
+	//	 {
+	//		glm::vec<4,float> poss[3] = {tri[0].pos,tri[1].pos,tri[2].pos};
+	//		glm::vec<4, float> colors[3] = { tri[0].color,tri[1].color,tri[2].color };
+
+	//		color.Init(colors, invW);
+	//		position.Init(poss, invW);
+
+	//	 }
+	//	 void Process(const RasterizerData& data,const RasterizerData& base,float invArea)
+	//	 {
+	//		color.Process(data,base,invArea);
+	//		position.Process(data, base,invArea);
+	//	 }
+	//	 void StartData()
+	//	 {
+	//		 color.StartData();
+	//		 position.StartData();
+	//	 }
+	//	 void IncrementY()
+	//	 {
+	//		 color.IncrementY();
+	//		 position.IncrementY();
+	//	 }
+	//	 void IncrementX()
+	//	 {
+	//		 color.IncrementX();
+	//		 position.IncrementX();
+	//	 }
+	//	 void ApplyFragment(Vertex& fragment) const 
+	//	 {
+	//		 color.ApplyValue(fragment.color);
+	//		 position.ApplyValue(fragment.pos);
+	//	 }
+	//	
+	//	 static void GetPos(const triangle& tri, glm::vec<4, float>(&pos)[3])
+	//	 {
+	//		 pos[0] = tri[0].pos;
+	//		 pos[1] = tri[1].pos;
+	//		 pos[2] = tri[2].pos;
+	//	 }
+	//	 static void GetInvW(const triangle& tri,glm::vec<3,float>& vector)
+	//	 {
+	//		 vector = { 1.f / tri[0].pos.w ,1.f / tri[1].pos.w, 1.f / tri[2].pos.w };
+	//	 }
+	//private:
+	//	FloatInterpolation<4> color;
+	//	FloatInterpolation<4> position;
+	//};
+
+	}
+#include <type_traits>
+#include <array>
+	namespace FDB::Pipeline
+	{
+		template<typename T>
+		struct Image
 		{
-			Float1,
-			Float2,
-			Float3,
-			Float4
-		};
-		struct Data
-		{
-			format format;
-			std::size_t offset;
+			using value_type = T;
+			value_type* buffer;
+			std::int32_t bufferWidth;
+			std::int32_t bufferHeight;
 		};
 	}
 
+
+
+	// TODO MOVE TO FILE ATTRIBUTE
+	#include <array>
+	#include <limits>
+	namespace FDB::Pipeline::Attribute
+	{
+			enum class format : std::uint32_t
+			{
+				Float1,
+				Float2,
+				Float3,
+				Float4,
+				None
+			};
+			struct Data
+			{
+				format format = format::None;
+				std::size_t offset = std::numeric_limits<std::size_t>::max();
+			};
+			template<typename T>
+			struct is_attributes_array : std::false_type {};
+			template<std::size_t N>
+			struct is_attributes_array<std::array<FDB::Pipeline::Attribute::Data, N>> : std::true_type {};
+			template<typename T>
+			static constexpr bool is_attributes_array_v = is_attributes_array<T>::value;
+
+			template<typename T>
+			concept ValidVertexT = requires()
+			{
+				{ T::PosAttribute() } -> std::same_as<FDB::Pipeline::Attribute::Data>;
+			}&& is_attributes_array_v<decltype(T::AllAttributes())> && (T::AllAttributes().size() > 0);
+
+
+			template<ValidVertexT T>
+			struct Interpret
+			{
+				using value_type = T;
+				static constexpr std::size_t structSize = sizeof(value_type);
+				static constexpr auto attributes = value_type::AllAttributes();
+				static constexpr FDB::Pipeline::Attribute::Data posAttribute = value_type::PosAttribute();
+				static constexpr std::size_t attributesSize = attributes.size();
+				
+				template<FDB::Pipeline::Attribute::Data AttribV>
+				struct InfoDataFloat
+				{
+					static constexpr FDB::Pipeline::Attribute::Data attrib = AttribV;
+					static constexpr std::size_t offset = attrib.offset;
+					static constexpr std::int32_t n =
+						attrib.format == FDB::Pipeline::Attribute::format::Float1 ? 1 :
+						attrib.format == FDB::Pipeline::Attribute::format::Float2 ? 2 :
+						attrib.format == FDB::Pipeline::Attribute::format::Float3 ? 3 :
+						attrib.format == FDB::Pipeline::Attribute::format::Float4 ? 4 : 0;
+				};
+
+				template<std::size_t i>
+				using infoFloat_t = InfoDataFloat<attributes[i]>;
+
+				using posInfo_t = InfoDataFloat<posAttribute>;
+			};
+
+		
+	}
+	// TODO MOVE TO FILE ATTRIBUTE
+
 	struct Vertex
 	{
+		float test;
 		glm::vec4 pos;
 		glm::vec<4, float> color;
-		static  constexpr  Test::Attribute::Data PosAttribute()
+		static  constexpr  FDB::Pipeline::Attribute::Data PosAttribute()
 		{
-			return Test::Attribute::Data{ Test::Attribute::format::Float4,offsetof(Vertex, pos) };
+			return FDB::Pipeline::Attribute::Data{ FDB::Pipeline::Attribute::format::Float4,offsetof(Vertex, pos) };
 		}
-		static constexpr  std::array<Test::Attribute::Data,2> AllAttributes()
+		static constexpr  std::array<FDB::Pipeline::Attribute::Data, 2> AllAttributes()
 		{
-			return { Test::Attribute::Data{Test::Attribute::format::Float4,offsetof(Vertex, pos)},Test::Attribute::Data{Test::Attribute::format::Float4,offsetof(Vertex, color)} };
+			return {FDB::Pipeline::Attribute::Data{FDB::Pipeline::Attribute::format::Float4,offsetof(Vertex, pos)},FDB::Pipeline::Attribute::Data{FDB::Pipeline::Attribute::format::Float4,offsetof(Vertex, color)} };
 		}
 	};
-
-
-	
 	using triangle = Vertex[3];
 
-	struct VertexInterpolation
-	{
-		 VertexInterpolation(const triangle& tri, const glm::vec<3, float>& invW)
-		 {
-			glm::vec<4,float> poss[3] = {tri[0].pos,tri[1].pos,tri[2].pos};
-			glm::vec<4, float> colors[3] = { tri[0].color,tri[1].color,tri[2].color };
-
-			color.Init(colors, invW);
-			position.Init(poss, invW);
-
-		 }
-		 void Process(const RasterizerData& data,const RasterizerData& base,float invArea)
-		 {
-			color.Process(data,base,invArea);
-			position.Process(data, base,invArea);
-		 }
-		 void StartData()
-		 {
-			 color.StartData();
-			 position.StartData();
-		 }
-		 void IncrementY()
-		 {
-			 color.IncrementY();
-			 position.IncrementY();
-		 }
-		 void IncrementX()
-		 {
-			 color.IncrementX();
-			 position.IncrementX();
-		 }
-		 void ApplyFragment(Vertex& fragment) const 
-		 {
-			 color.ApplyValue(fragment.color);
-			 position.ApplyValue(fragment.pos);
-		 }
-		
-		 static void GetPos(const triangle& tri, glm::vec<4, float>(&pos)[3])
-		 {
-			 pos[0] = tri[0].pos;
-			 pos[1] = tri[1].pos;
-			 pos[2] = tri[2].pos;
-		 }
-		 static void GetInvW(const triangle& tri,glm::vec<3,float>& vector)
-		 {
-			 vector = { 1.f / tri[0].pos.w ,1.f / tri[1].pos.w, 1.f / tri[2].pos.w };
-		 }
-	private:
-		FloatInterpolation<4> color;
-		FloatInterpolation<4> position;
-	};
 
 
-	namespace Test
+	namespace FDB::Pipeline::Rasterizer
 	{
 		struct EdgesData
 		{
@@ -415,281 +491,543 @@ struct Atribut
 		{
 			using value_type = T;
 			value_type data;
-			std::array<value_type,2> delta;
+			std::array<value_type, 2> delta;
 		};
-	}
-
-	
-	template<typename T>
-	struct Interpolateur
-	{
-		using value_type = T;
-		static constexpr std::size_t size = sizeof(T) * 8;
-		static constexpr auto attributes = T::AllAttributes();
-		static constexpr std::size_t attributesSize = attributes.size();
-		Interpolateur() : data{}
-		{
-		}
-
-		void Init(const T& dataT, float invW)
-		{
-			const std::byte* rawData = reinterpret_cast<const std::byte*>(&dataT);
-			[&] <std::size_t... I>(std::index_sequence<I...>)
-			{
-				(this->template Init<I>(rawData, invW), ...);
-			}(std::make_index_sequence<attributesSize>{});
-		}
-
-		template<std::size_t i>
-		void Init(const std::byte* rawData,float invW)
-		{
-			static constexpr Test::Attribute::Data attrib = attributes[i];
-			static constexpr std::size_t offset = attrib.offset;
-
-			static constexpr std::int32_t n =
-				attrib.format == Test::Attribute::format::Float1 ? 1 :
-				attrib.format == Test::Attribute::format::Float2 ? 2 :
-				attrib.format == Test::Attribute::format::Float3 ? 3 :
-				attrib.format == Test::Attribute::format::Float4 ? 4 : 0;
-
-			if constexpr (n == 0)
-				return;
-			else
-			{
-				glm::vec<n,float> v;
-				std::memcpy(&v, rawData + offset, sizeof(v));
-				v *= invW;
-				std::memcpy(data + offset, &v, sizeof(v));
-			}
-		}
-		void InitStart(const std::array<Interpolateur,3>& baseInterpol,const Test::EdgesData& edgeData,float invArea)
-		{
-			const std::byte* rawData0 = reinterpret_cast<const std::byte*>(&baseInterpol[0]);
-			const std::byte* rawData1= reinterpret_cast<const std::byte*>(&baseInterpol[1]);
-			const std::byte* rawData2 = reinterpret_cast<const std::byte*>(&baseInterpol[2]);
-
-			[&] <std::size_t... I>(std::index_sequence<I...>)
-			{
-				(this->template InitStart<I>(rawData0, rawData1, rawData2,edgeData,invArea), ...);
-			}(std::make_index_sequence<attributesSize>{});
-			
-		}
-
-		template<std::size_t i>
-		void InitStart(const std::byte* rawData0, const std::byte* rawData1, const std::byte* rawData2, const Test::EdgesData& edgeData, float invArea)
-		{
-			static constexpr Test::Attribute::Data attrib = attributes[i];
-			static constexpr std::size_t offset = attrib.offset;
-
-			static constexpr std::int32_t n =
-				attrib.format == Test::Attribute::format::Float1 ? 1 :
-				attrib.format == Test::Attribute::format::Float2 ? 2 :
-				attrib.format == Test::Attribute::format::Float3 ? 3 :
-				attrib.format == Test::Attribute::format::Float4 ? 4 : 0;
-
-			if constexpr (n == 0)
-				return;
-			else
-			{
-				glm::vec<n, float> v0;
-				glm::vec<n, float> v1;
-				glm::vec<n, float> v2;
-				std::memcpy(&v0, rawData0 + offset, sizeof(v0));
-				std::memcpy(&v1, rawData1 + offset, sizeof(v1));
-				std::memcpy(&v2, rawData2 + offset, sizeof(v2));
-				glm::vec<n, float> vFinal = v0 * edgeData.edgesFn.y + v1 * edgeData.edgesFn.z + v2 * edgeData.edgesFn.x;
-				vFinal *= invArea;
-				std::memcpy(data + offset, &vFinal, sizeof(vFinal));
-			}
-		}
-
-
-		template<bool isX>
-		void InitIncrement(const std::array<Interpolateur, 3>& baseInterpol, const Test::EdgesData& edgeData, float invArea)
-		{
-			const std::byte* rawData0 = reinterpret_cast<const std::byte*>(&baseInterpol[0]);
-			const std::byte* rawData1 = reinterpret_cast<const std::byte*>(&baseInterpol[1]);
-			const std::byte* rawData2 = reinterpret_cast<const std::byte*>(&baseInterpol[2]);
-			[&] <std::size_t... I>(std::index_sequence<I...>)
-			{
-				(this->template InitIncrement<I,isX>(rawData0, rawData1, rawData2, edgeData, invArea), ...);
-			}(std::make_index_sequence<attributesSize>{});
-
-		}
-		
-		template<std::size_t i,bool isX>
-		void InitIncrement(const std::byte* rawData0, const std::byte* rawData1, const std::byte* rawData2, const Test::EdgesData& edgeData, float invArea)
-		{
-			static constexpr Test::Attribute::Data attrib = attributes[i];
-			static constexpr std::size_t offset = attrib.offset;
-
-			static constexpr std::int32_t n =
-				attrib.format == Test::Attribute::format::Float1 ? 1 :
-				attrib.format == Test::Attribute::format::Float2 ? 2 :
-				attrib.format == Test::Attribute::format::Float3 ? 3 :
-				attrib.format == Test::Attribute::format::Float4 ? 4 : 0;
-
-			if constexpr (n == 0)
-				return;
-			else
-			{
-				glm::vec<n, float> v0;
-				glm::vec<n, float> v1;
-				glm::vec<n, float> v2;
-				std::memcpy(&v0, rawData0 + offset, sizeof(v0));
-				std::memcpy(&v1, rawData1 + offset, sizeof(v1));
-				std::memcpy(&v2, rawData2 + offset, sizeof(v2));
-				glm::vec<n, float> vFinal;
-				if constexpr (isX)
-					 vFinal = v0 * edgeData.edgesFnDelta[1].x + v1 * edgeData.edgesFnDelta[2].x + v2 * edgeData.edgesFnDelta[0].x;
-				else
-					vFinal = v0 * edgeData.edgesFnDelta[1].y + v1 * edgeData.edgesFnDelta[2].y + v2 * edgeData.edgesFnDelta[0].y;
-
-				vFinal *= invArea;
-				std::memcpy(data + offset, &vFinal, sizeof(vFinal));
-
-			}
-		}
-		Interpolateur& operator+=(const Interpolateur& other)
-		{
-			const std::byte* rawData = reinterpret_cast<const std::byte*>(&other);
-			[&] <std::size_t... I>(std::index_sequence<I...>)
-			{
-				(this->template Add<I>(rawData), ...);
-			}(std::make_index_sequence<attributesSize>{});
-
-
-			return *this;
-		}
-		template<std::size_t i>
-		void Add(const std::byte* otherData)
-		{
-			static constexpr Test::Attribute::Data attrib = attributes[i];
-			static constexpr std::size_t offset = attrib.offset;
-
-			static constexpr std::int32_t n =
-				attrib.format == Test::Attribute::format::Float1 ? 1 :
-				attrib.format == Test::Attribute::format::Float2 ? 2 :
-				attrib.format == Test::Attribute::format::Float3 ? 3 :
-				attrib.format == Test::Attribute::format::Float4 ? 4 : 0;
-
-			if constexpr (n == 0)
-				return;
-			else
-			{
-				glm::vec<n, float> v0;
-				glm::vec<n, float> v1;
-				std::memcpy(&v0, otherData + offset, sizeof(v0));
-				std::memcpy(&v1 ,data + offset, sizeof(v1));
-				glm::vec<n, float> vFinal = v0 + v1;
-				std::memcpy(data + offset, &vFinal, sizeof(vFinal));
-
-			}
-		}
-		void Apply(value_type& fragment, float w)
-		{
-			 std::byte* rawData = reinterpret_cast<std::byte*>(&fragment);
-			[&] <std::size_t... I>(std::index_sequence<I...>)
-			{
-				(this->template Apply<I>(rawData,w), ...);
-			}(std::make_index_sequence<attributesSize>{});
-		}
-		template<std::size_t i>
-		void Apply(std::byte* rawData,float w)
-		{
-			static constexpr Test::Attribute::Data attrib = attributes[i];
-			static constexpr std::size_t offset = attrib.offset;
-
-			static constexpr std::int32_t n =
-				attrib.format == Test::Attribute::format::Float1 ? 1 :
-				attrib.format == Test::Attribute::format::Float2 ? 2 :
-				attrib.format == Test::Attribute::format::Float3 ? 3 :
-				attrib.format == Test::Attribute::format::Float4 ? 4 : 0;
-
-			if constexpr (n == 0)
-				return;
-			else
-			{
-				glm::vec<n, float> v;
-				std::memcpy(&v, data + offset, sizeof(v));
-				v *= w;
-				std::memcpy(rawData + offset, &v, sizeof(v));
-			}
-		}
-		std::byte data[size];
-	};
-
-
-
-
-	
-#include <type_traits>
-#include <array>
-
-
-	namespace Test
-	{
-		using fragment = Vertex;
-		using vertex_t = Vertex;
-		using triangle_t = std::array<vertex_t, 3>;
-		using viewPort_t = FDB::Rect<std::int32_t>;
-		struct Image
-		{
-			std::uint32_t* buffer;
-			std::int32_t bufferWidth;
-			std::int32_t bufferHeight;
-		};
-	
 		struct BlockData
 		{
 			glm::vec<2, std::int32_t> blockSize, blockOrigin;
 		};
-		struct Rasterizer2
+	
+		template<FDB::Pipeline::Attribute::ValidVertexT T>
+		struct AttributeData
 		{
+			using value_type = T;
+			using interpret_t = FDB::Pipeline::Attribute::Interpret<value_type>;
+			using edgesData_t = FDB::Pipeline::Rasterizer::EdgesData;
+			AttributeData() : m_data() {}
+			~AttributeData() = default;
+			AttributeData(const AttributeData&) = default;
+			AttributeData(AttributeData&&)noexcept = default;
+			AttributeData& operator=(const AttributeData&) = default;
+			AttributeData& operator=(AttributeData&&) noexcept = default;
+
+			void InitW(const T& dataT, float invW)
+			{
+				const std::byte* rawData = reinterpret_cast<const std::byte*>(&dataT);
+				this->ForEach([&]<std::size_t i>()
+				{
+					this->template PrivateInitW<i>(rawData, invW);
+				});
+			}
+
+			void InitOrigin(const std::array<AttributeData, 3>& baseInterpol, const  edgesData_t& edgeData, float invArea)
+			{
+				const std::byte* rawData0 = reinterpret_cast<const std::byte*>(&baseInterpol[0]);
+				const std::byte* rawData1 = reinterpret_cast<const std::byte*>(&baseInterpol[1]);
+				const std::byte* rawData2 = reinterpret_cast<const std::byte*>(&baseInterpol[2]);
+
+
+				this->ForEach([&]<std::size_t i>()
+				{
+					this->template PrivateInitOrigin<i>(rawData0, rawData1, rawData2, edgeData, invArea);
+				});
+			}
+
+
+
+
+			template<bool isX>
+			void InitGradiant(const std::array<AttributeData, 3>& baseInterpol, const edgesData_t& edgeData, float invArea)
+			{
+				const std::byte* rawData0 = reinterpret_cast<const std::byte*>(&baseInterpol[0]);
+				const std::byte* rawData1 = reinterpret_cast<const std::byte*>(&baseInterpol[1]);
+				const std::byte* rawData2 = reinterpret_cast<const std::byte*>(&baseInterpol[2]);
+
+				this->ForEach([&]<std::size_t i>()
+				{
+					this->template PrivateInitGradiant<i, isX>(rawData0, rawData1, rawData2, edgeData, invArea);
+				});
+			}
+
+
+			AttributeData& operator+=(const AttributeData& other)
+			{
+				const std::byte* rawData = reinterpret_cast<const std::byte*>(&other);
+
+				this->ForEach([&]<std::size_t i>()
+				{
+					this->template PrivateAdd<i>(rawData);
+				});
+
+				return *this;
+			}
+
+			void Apply(value_type& fragment, float w) const 
+			{
+				std::byte* rawData = reinterpret_cast<std::byte*>(&fragment);
+
+				this->ForEach([&]<std::size_t i>()
+				{
+					this->template PrivateApply<i>(rawData, w);
+				});
+			}
+
+		private:
+
+			template<typename FN>
+			void ForEach(const FN& fn) const 
+			{
+				[&] <std::size_t... i>(std::index_sequence<i...>)
+				{
+					(fn.template operator() < i > (), ...);
+				}(std::make_index_sequence< interpret_t::attributesSize >{});
+			}
+
+			template<std::size_t i>
+			void PrivateInitW(const std::byte* rawData, float invW)
+			{
+				using info_t = interpret_t::template infoFloat_t<i>;
+
+				if constexpr (info_t::n == 0)
+					return;
+				else
+				{
+					glm::vec<info_t::n, float> v;
+					std::memcpy(&v, rawData + info_t::offset, sizeof(v));
+					v *= invW;
+					std::memcpy(m_data + info_t::offset, &v, sizeof(v));
+				}
+			}
+			template<std::size_t i>
+			void PrivateInitOrigin(const std::byte* rawData0, const std::byte* rawData1, const std::byte* rawData2, const  edgesData_t& edgeData, float invArea)
+			{
+				using info_t = interpret_t::template infoFloat_t<i>;
+				if constexpr (info_t::n == 0)
+					return;
+				else
+				{
+					glm::vec<info_t::n, float> v0;
+					glm::vec<info_t::n, float> v1;
+					glm::vec<info_t::n, float> v2;
+					std::memcpy(&v0, rawData0 + info_t::offset, sizeof(v0));
+					std::memcpy(&v1, rawData1 + info_t::offset, sizeof(v1));
+					std::memcpy(&v2, rawData2 + info_t::offset, sizeof(v2));
+					glm::vec<info_t::n, float> vFinal = v0 * edgeData.edgesFn.y + v1 * edgeData.edgesFn.z + v2 * edgeData.edgesFn.x;
+					vFinal *= invArea;
+					std::memcpy(m_data + info_t::offset, &vFinal, sizeof(vFinal));
+				}
+			}
+			template<std::size_t i, bool isX>
+			void PrivateInitGradiant(const std::byte* rawData0, const std::byte* rawData1, const std::byte* rawData2, const edgesData_t& edgeData, float invArea)
+			{
+				using info_t = interpret_t::template infoFloat_t<i>;
+				if constexpr (info_t::n == 0)
+					return;
+				else
+				{
+					glm::vec<info_t::n, float> v0;
+					glm::vec<info_t::n, float> v1;
+					glm::vec<info_t::n, float> v2;
+					std::memcpy(&v0, rawData0 + info_t::offset, sizeof(v0));
+					std::memcpy(&v1, rawData1 + info_t::offset, sizeof(v1));
+					std::memcpy(&v2, rawData2 + info_t::offset, sizeof(v2));
+					glm::vec<info_t::n, float> vFinal;
+					if constexpr (isX)
+						vFinal = v0 * edgeData.edgesFnDelta[1].x + v1 * edgeData.edgesFnDelta[2].x + v2 * edgeData.edgesFnDelta[0].x;
+					else
+						vFinal = v0 * edgeData.edgesFnDelta[1].y + v1 * edgeData.edgesFnDelta[2].y + v2 * edgeData.edgesFnDelta[0].y;
+
+					vFinal *= invArea;
+					std::memcpy(m_data + info_t::offset, &vFinal, sizeof(vFinal));
+
+				}
+			}
+			template<std::size_t i>
+			void PrivateAdd(const std::byte* otherData)
+			{
+				using info_t = interpret_t::template infoFloat_t<i>;
+
+				if constexpr (info_t::n == 0)
+					return;
+				else
+				{
+					glm::vec<info_t::n, float> v0;
+					glm::vec<info_t::n, float> v1;
+					std::memcpy(&v0, otherData + info_t::offset, sizeof(v0));
+					std::memcpy(&v1, m_data + info_t::offset, sizeof(v1));
+					glm::vec<info_t::n, float> vFinal = v0 + v1;
+					std::memcpy(m_data + info_t::offset, &vFinal, sizeof(vFinal));
+
+				}
+			}
+			template<std::size_t i>
+			void PrivateApply(std::byte* rawData, float w) const 
+			{
+				using info_t = interpret_t::template infoFloat_t<i>;
+				if constexpr (info_t::n == 0)
+					return;
+				else
+				{
+					glm::vec<info_t::n, float> v;
+					std::memcpy(&v, m_data + info_t::offset, sizeof(v));
+					v *= w;
+					std::memcpy(rawData + info_t::offset, &v, sizeof(v));
+				}
+			}
+			std::byte m_data[interpret_t::structSize];
+		};
+	
+		enum class FragmentState
+		{
+			Keep,
+			Discard,
+			DepthChange
+		};
+
+		template<FragmentState state>
+		struct FragmentOutput;
+
+		template<>
+		struct FragmentOutput<FragmentState::Keep>
+		{
+			FragmentOutput() = delete;
+			FragmentOutput(const FragmentOutput&) = default;
+			FragmentOutput(FragmentOutput&&) noexcept = default;
+			~FragmentOutput() = default;
+			FragmentOutput& operator=(const FragmentOutput&) = default;
+			FragmentOutput& operator=(FragmentOutput&&) noexcept = default;
+			static FragmentOutput Color(const glm::vec<4,float>& color_ = {0,0,0,1.f}){return { color_ };}
+			glm::vec<4, float> color;
+		private:
+			FragmentOutput(const glm::vec<4,float>& color_) : color(color_){}
+		};
+
+		template<>
+		struct FragmentOutput<FragmentState::Discard>
+		{
+			FragmentOutput() = delete;
+			FragmentOutput(const FragmentOutput&) = default;
+			FragmentOutput(FragmentOutput&&) noexcept = default;
+			~FragmentOutput() = default;
+			FragmentOutput& operator=(const FragmentOutput&) = default;
+			FragmentOutput& operator=(FragmentOutput&&) noexcept = default;
+			static FragmentOutput Color(const glm::vec<4, float>& color_) { return { color_,false }; }
+			static FragmentOutput Discard(){return { {},true };}
+			glm::vec<4, float> color;
+			bool discard;
+		private:
+			FragmentOutput(const glm::vec<4, float>& color_,bool discard_) : color(color_),discard(discard_) {}
+		};
+
+		template<>
+		struct FragmentOutput<FragmentState::DepthChange>
+		{
+			FragmentOutput() = delete;
+			FragmentOutput(const FragmentOutput&) = default;
+			FragmentOutput(FragmentOutput&&) noexcept = default;
+			~FragmentOutput() = default;
+			FragmentOutput& operator=(const FragmentOutput&) = default;
+			FragmentOutput& operator=(FragmentOutput&&) noexcept = default;
+			static FragmentOutput Color(const glm::vec<4, float>& color_,float z) { return { color_,z,false }; }
+			static FragmentOutput Discard() { return { {},0,true }; }
+			glm::vec<4, float> color;
+			float z;
+			bool discard;
+		private:
+			FragmentOutput(const glm::vec<4, float>& color_,float z_, bool discard_) : color(color_),z(z_), discard(discard_) {}
+		};
+
+		template<FragmentState state>
+		using fragment_output_t = FragmentOutput<state>;
+
+
+		template<typename fragmentT,FragmentState state,typename FN> 
+		concept ValidFragmentFunction = std::is_invocable_r_v<fragment_output_t<state>, FN, const fragmentT&, const glm::vec<2, std::int32_t>&, float>;
+	
+
+		
+	
+		template<FDB::Pipeline::Attribute::ValidVertexT VertexT> 
+		struct TriangleRasterizer
+		{
+
+			using fragment = VertexT;
+			using vertex_t = VertexT;
+			using triangle_t = std::array<vertex_t, 3>;
+			using viewPort_t = FDB::Rect<std::int32_t>;
+			using attributeData_t = AttributeData<vertex_t>;
+			using interpret_t = Attribute::Interpret<vertex_t>;
+			using edgesData_t =EdgesData;
+			template<typename T>
+			using deltaData_t = DeltaData<T>;
+			using blockData_t = BlockData;
 			static  constexpr  glm::vec<2, int> blockDim = { 64,64 };
+			using fragmentState_t  = FragmentState;
+			struct TriangleSetup
+			{
+				triangle_t triangle;
+				float invArea;
+				box2_t<std::int32_t> box;
+				edgesData_t baseEdgeData;
+				glm::vec<3, float> baseInvW;
+				glm::vec<3,float> baseZ;
+				std::array<attributeData_t, 3> inter;
+				std::array<bool, 3> topLeftRule;
+			};
+			struct BlockSetup
+			{
+				blockData_t block;
+				deltaData_t<float> wData;
+				deltaData_t<float> zData;
+				deltaData_t<attributeData_t> interData;
+				std::array <glm::vec<3, float>, 2> edgeIncrement;
+			};
+			template< fragmentState_t state,typename fragmentShaderT> requires(ValidFragmentFunction<fragment,state,fragmentShaderT>)
+			static void Compute(const triangle_t& triangle, const viewPort_t& viewPort, Image<std::uint32_t>& image,Image<float>& zImage,const fragmentShaderT& fragmentShader)
+			{
+				// position
+				const std::array<glm::vec<4, float>, 3> position = TriangleRasterizer::GetPosition(triangle);
+				// positon
+				// area
+				float area = TriangleRasterizer::GetArea(position);
+				if (!TriangleRasterizer::IsValidArea(area))
+					return;
+
+				TriangleSetup setup;
+				setup.triangle = triangle;
+				setup.invArea = 1.f / area;
+				setup.box = TriangleRasterizer::GetBox(position, viewPort);
+			
+				
+				setup.baseEdgeData.edgesFn = TriangleRasterizer::InitializeEdgeFunction(position, setup.box);
+				setup.baseEdgeData.edgesFnDelta = TriangleRasterizer::InitializeEdgeDelta(position);
+
+				setup.baseInvW = TriangleRasterizer::GetInvW(position);
+				setup.baseZ[0] = position[0].z;
+				setup.baseZ[1] = position[1].z;
+				setup.baseZ[2] = position[2].z;
+
+				
+				setup.inter[0].InitW(triangle[0], setup.baseInvW[0]);
+				setup.inter[1].InitW(triangle[1], setup.baseInvW[1]);
+				setup.inter[2].InitW(triangle[2], setup.baseInvW[2]);
+				setup.topLeftRule[0] = TriangleRasterizer::IsTopLeft({ position[0].x, position[0].y },{ position[1].x, position[1].y });
+				setup.topLeftRule[1] = TriangleRasterizer::IsTopLeft({ position[1].x, position[1].y }, { position[2].x, position[2].y });
+				setup.topLeftRule[2] = TriangleRasterizer::IsTopLeft({ position[2].x, position[2].y }, { position[0].x, position[0].y });
+
+				TriangleRasterizer::Loop<state,fragmentShaderT>(setup, image,zImage,fragmentShader);
+			}
+		private:
+
+			template<fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>)
+			static void Loop(const TriangleSetup& setup, Image<std::uint32_t>& image, Image<float>& zImage,const fragmentShaderT& fragmentShader)
+			{
+
+				BlockSetup blockSetup;
+				blockSetup.wData = TriangleRasterizer::SetupLinearData(setup.baseInvW, setup.baseEdgeData, setup.invArea);
+				blockSetup.interData = TriangleRasterizer::SetupInterData(setup.inter, setup.baseEdgeData, setup.invArea);
+				blockSetup.zData  = TriangleRasterizer::SetupLinearData(setup.baseZ, setup.baseEdgeData, setup.invArea);
+				
+				blockSetup.edgeIncrement = {
+					glm::vec<3, float>(setup.baseEdgeData.edgesFnDelta[0].x, setup.baseEdgeData.edgesFnDelta[1].x, setup.baseEdgeData.edgesFnDelta[2].x),
+					glm::vec<3, float>(setup.baseEdgeData.edgesFnDelta[0].y, setup.baseEdgeData.edgesFnDelta[1].y, setup.baseEdgeData.edgesFnDelta[2].y) };
+
+				
+				for (std::int32_t blockY = setup.box.min.y; blockY <= setup.box.max.y; blockY += blockDim.y)
+				{
+					blockSetup.block.blockSize.y = std::min(blockDim.y, setup.box.max.y - blockY + 1);
+					for (std::int32_t blockX = setup.box.min.x; blockX <= setup.box.max.x; blockX += blockDim.x)
+					{
+
+						blockSetup.block.blockSize.x = std::min(blockDim.x, setup.box.max.x - blockX + 1);
+
+						blockSetup.block.blockOrigin = { blockX, blockY };
+						edgesData_t blockEdgeData = TriangleRasterizer::InitializeStepEdgeData(blockSetup.block.blockOrigin, setup.box, blockSetup.block.blockSize, setup.baseEdgeData);
+
+						if (TriangleRasterizer::IsBlockOut(blockEdgeData))
+							continue;
+
+						TriangleRasterizer::UpdateLinearData(setup.baseInvW, blockEdgeData, setup.invArea, blockSetup.wData);
+						TriangleRasterizer::UpdateInterData(setup.inter, blockEdgeData, setup.invArea, blockSetup.interData);
+						TriangleRasterizer::UpdateLinearData(setup.baseZ, blockEdgeData, setup.invArea, blockSetup.zData);
+
+						
+
+						if (IsBlockFullyInside(blockEdgeData))
+						{
+							TriangleRasterizer::PixelLoopInside<state,fragmentShaderT>(setup.triangle, blockSetup, image,zImage,fragmentShader);
+						}
+						else
+						{
+							TriangleRasterizer::PixelLoopClassic<state,fragmentShaderT>(setup.triangle,setup.topLeftRule, blockEdgeData, blockSetup, image,zImage,fragmentShader);
+						}
+					}
+				}
+			}
+
+
+
+
+			template< fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>)
+			static void PixelLoopInside(const triangle_t& triangle, BlockSetup& setup, Image<std::uint32_t>& image, Image<float>& zImage,const fragmentShaderT& fragmentShader)
+			{
+				for (std::int32_t y = 0; y < setup.block.blockSize.y; ++y)
+				{
+					float w = setup.wData.data;
+					float z = setup.zData.data;
+					attributeData_t inter = setup.interData.data;
+					glm::vec<2, std::int32_t> pixel{ setup.block.blockOrigin.x,setup.block.blockOrigin.y + y };
+					std::uint32_t* imagePtr = image.buffer + (pixel.y * image.bufferWidth + pixel.x);
+					float* zImagePtr = zImage.buffer + (pixel.y * zImage.bufferWidth + pixel.x);
+					for (std::int32_t x = 0; x < setup.block.blockSize.x; ++x)
+					{
+						TriangleRasterizer::ApplyFragment<state, fragmentShaderT>(triangle, inter, w, z, pixel, imagePtr, zImagePtr, fragmentShader);
+						++zImagePtr;
+						++imagePtr;
+						++pixel.x;
+						w += setup.wData.delta[0];
+						z += setup.zData.delta[0];
+						inter += setup.interData.delta[0];
+					}
+					setup.wData.data += setup.wData.delta[1];
+					setup.interData.data += setup.interData.delta[1];
+					setup.zData.data += setup.zData.delta[1];
+				}
+			}
+
+			static bool IsInside(const glm::vec<3, float>& edgesFn,const std::array<bool, 3>& topLeftRule)
+			{
+				return ((topLeftRule[0] == true ? edgesFn[0] >= 0 : edgesFn[0] > 0) && (topLeftRule[1] == true ? edgesFn[1] >= 0 : edgesFn[1] > 0) && (topLeftRule[2] == true ? edgesFn[2] >= 0 : edgesFn[2] > 0));
+			}
+
+			template<fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>)
+			static void PixelLoopClassic(const triangle_t& triangle,const std::array<bool,3>& topLeftRule, edgesData_t& currentEdgeData, BlockSetup& setup, Image<std::uint32_t>& image, Image<float>& zImage,const fragmentShaderT& fragmentShader)
+			{
+				for (std::int32_t y = 0; y < setup.block.blockSize.y; ++y)
+				{
+					glm::vec<3, float> edgesFn = currentEdgeData.edgesFn;
+					float w = setup.wData.data;
+					float z = setup.zData.data;
+					attributeData_t inter = setup.interData.data;
+
+					glm::vec<2, std::int32_t> pixel { setup.block.blockOrigin.x,setup.block.blockOrigin.y + y };
+					std::uint32_t* imagePtr = image.buffer + (pixel.y * image.bufferWidth + pixel.x);
+					float* zImagePtr = zImage.buffer + (pixel.y * zImage.bufferWidth + pixel.x);
+
+					for (std::int32_t x = 0; x < setup.block.blockSize.x; ++x)
+					{
+						if (TriangleRasterizer::IsInside(edgesFn,topLeftRule))
+						{
+							
+							TriangleRasterizer::ApplyFragment<state, fragmentShaderT>(triangle, inter, w, z, pixel, imagePtr, zImagePtr, fragmentShader);
+						}
+						++imagePtr;
+						++zImagePtr;
+						++pixel.x;
+						edgesFn += setup.edgeIncrement[0];
+						w += setup.wData.delta[0];
+						z += setup.zData.delta[0];
+						inter += setup.interData.delta[0];
+					}
+					currentEdgeData.edgesFn += setup.edgeIncrement[1];
+					setup.wData.data += setup.wData.delta[1];
+					setup.interData.data += setup.interData.delta[1];
+					setup.zData.data += setup.zData.delta[1];
+				}
+			}
+		private:
+			template<fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT> && state == fragmentState_t::Keep)
+			static void ApplyFragment(const triangle_t& triangle,const attributeData_t& inter,float w,float z,const glm::vec<2,float>& pixel, std::uint32_t* imagePtr, float* zImagePtr,const fragmentShaderT& fragmentShader)
+			{
+				if (z >= *zImagePtr)
+					return;
+				float currentW = 1.f / w;
+				vertex_t fragment = triangle[0];
+				inter.Apply(fragment, currentW);
+			    fragment_output_t<state> out = fragmentShader(fragment, pixel, z);
+				*zImagePtr = z;
+				glm::vec4 fragColor = out.color * 255.f;
+				std::uint32_t r = static_cast<std::uint32_t>(fragColor.x);
+				std::uint32_t g = static_cast<std::uint32_t>(fragColor.y);
+				std::uint32_t b = static_cast<std::uint32_t>(fragColor.z);
+				std::uint32_t a = static_cast<std::uint32_t>(fragColor.a);
+				*imagePtr = (r) | (g << 8) | (b << 16) | (a << 24);
+				
+			}
+			template< fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>&& state == fragmentState_t::Discard)
+			static void ApplyFragment(const triangle_t& triangle, const attributeData_t& inter, float w, float z, const glm::vec<2, float>& pixel, std::uint32_t* imagePtr, float* zImagePtr, const fragmentShaderT& fragmentShader)
+			{
+				if (z >= *zImagePtr)
+					return;
+				float currentW = 1.f / w;
+				vertex_t fragment = triangle[0];
+				inter.Apply(fragment, currentW);
+				fragment_output_t<state> out = fragmentShader(fragment, pixel, z);
+				if (out.discard)
+					return;
+				*zImagePtr = z;
+				glm::vec4 fragColor = out.color * 255.f;
+				std::uint32_t r = static_cast<std::uint32_t>(fragColor.x);
+				std::uint32_t g = static_cast<std::uint32_t>(fragColor.y);
+				std::uint32_t b = static_cast<std::uint32_t>(fragColor.z);
+				std::uint32_t a = static_cast<std::uint32_t>(fragColor.a);
+				*imagePtr = (r) | (g << 8) | (b << 16) | (a << 24);
+			}
+			template< fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>&& state == fragmentState_t::DepthChange)
+			static void ApplyFragment(const triangle_t& triangle, const attributeData_t& inter, float w, float z, const glm::vec<2, float>& pixel, std::uint32_t* imagePtr, float* zImagePtr, const fragmentShaderT& fragmentShader)
+			{
+				vertex_t fragment = triangle[0];
+				float currentW = 1.f / w;
+				inter.Apply(fragment, currentW);
+				fragment_output_t<state> out = fragmentShader(fragment, pixel, z);
+				if (out.discard || out.z >= *zImagePtr)
+					return;
+				*zImagePtr = out.z;
+				glm::vec4 fragColor = out.color * 255.f;
+				std::uint32_t r = static_cast<std::uint32_t>(fragColor.x);
+				std::uint32_t g = static_cast<std::uint32_t>(fragColor.y);
+				std::uint32_t b = static_cast<std::uint32_t>(fragColor.z);
+				std::uint32_t a = static_cast<std::uint32_t>(fragColor.a);
+				*imagePtr = (r) | (g << 8) | (b << 16) | (a << 24);
+				
+			}
+
+
 			static std::array<glm::vec<4, float>, 3> GetPosition(const triangle_t& triangle)
 			{
 				std::array<glm::vec<4, float>, 3> result;
-				result[0] = {0.f,0.f,0.f,1.f};
+				result[0] = { 0.f,0.f,0.f,1.f };
 				result[1] = { 0.f,0.f,0.f,1.f };
 				result[2] = { 0.f,0.f,0.f,1.f };
 
-
-				static constexpr Test::Attribute::Data attrib = vertex_t::PosAttribute();
-				static constexpr std::size_t offset = attrib.offset;
-
-				static constexpr std::int32_t n =
-					attrib.format == Test::Attribute::format::Float1 ? 1 :
-					attrib.format == Test::Attribute::format::Float2 ? 2 :
-					attrib.format == Test::Attribute::format::Float3 ? 3 :
-					attrib.format == Test::Attribute::format::Float4 ? 4 : 0;
-
-
-				if constexpr (n == 0)
+				if constexpr (interpret_t::posInfo_t::n == 0)
 					return result;
 				else
 				{
-					for (std::int32_t i = 0 ; i < 3 ; ++i)
+					for (std::int32_t i = 0; i < 3; ++i)
 					{
 						const std::byte* rawData = reinterpret_cast<const std::byte*>(&triangle[i]);
-						glm::vec<n, float> v;
-						std::memcpy(&v, rawData + offset, sizeof(v));
+						glm::vec<interpret_t::posInfo_t::n, float> v;
+						std::memcpy(&v, rawData + interpret_t::posInfo_t::offset, sizeof(v));
 						std::byte* data = reinterpret_cast<std::byte*>(&result[i]);
 						std::memcpy(data, &v, sizeof(v));
 					}
 				}
 
 				return  result;
-			
 			}
-			static float EdgeFunction(const glm::vec<2,float>& A, const glm::vec<2,float> B, const glm::vec<2,float> D)
+			static float EdgeFunction(const glm::vec<2, float>& A, const glm::vec<2, float> B, const glm::vec<2, float> D)
 			{
 				return (D.x - A.x) * (B.y - A.y) - (D.y - A.y) * (B.x - A.x);
 			}
+			static bool IsTopLeft(const glm::vec<2, float>& A, const glm::vec<2,float>& B)
+			{
+				return ((B.y - A.y) > 0.0f || ((B.y - A.y) == 0.f) && ((B.x - A.x) < 0.f));
+			}
 			static float GetArea(const std::array<glm::vec<4, float>, 3>& pos)
 			{
-				return Rasterizer2::EdgeFunction(
-					{pos[0].x, pos[0].y},
+				return TriangleRasterizer::EdgeFunction(
+					{ pos[0].x, pos[0].y },
 					{ pos[1].x, pos[1].y },
 					{ pos[2].x,pos[2].y });
 			}
@@ -697,7 +1035,6 @@ struct Atribut
 			{
 				return area > 0;
 			}
-
 			static box2_t<int> GetBox(const std::array<glm::vec<4, float>, 3>& pos, const FDB::Rect<std::int32_t>& viewPort)
 			{
 				box2_t<int> box;
@@ -707,28 +1044,27 @@ struct Atribut
 				box.max.y = std::min(viewPort.y + viewPort.height - 1, static_cast<int>(std::max({ pos[0].y, pos[1].y, pos[2].y })));
 				return box;
 			}
-			static glm::vec<3, float> InitializeEdgeFunction(const std::array<glm::vec<4, float>, 3>& pos,const box2_t<std::int32_t>& box)
+			static glm::vec<3, float> InitializeEdgeFunction(const std::array<glm::vec<4, float>, 3>& pos, const box2_t<std::int32_t>& box)
 			{
-				glm::vec<2, float> minFloat = { static_cast<float>(box.min.x) , static_cast<float>(box.min.y) };
-				return { 
-					 Rasterizer2::EdgeFunction({pos[0].x, pos[0].y},{ pos[1].x,pos[1].y},{ minFloat.x, minFloat.y})
-					,Rasterizer2::EdgeFunction({pos[1].x, pos[1].y},{ pos[2].x, pos[2].y},{minFloat.x, minFloat.y})
-					,Rasterizer2::EdgeFunction({pos[2].x, pos[2].y},{ pos[0].x,pos[0].y}, {minFloat.x, minFloat.y}) };
+				glm::vec<2, float> minFloat = { static_cast<float>(box.min.x) + 0.5f, static_cast<float>(box.min.y) + 0.5f };
+				return {
+					 TriangleRasterizer::EdgeFunction({pos[0].x, pos[0].y},{ pos[1].x,pos[1].y},{ minFloat.x, minFloat.y})
+					,TriangleRasterizer::EdgeFunction({pos[1].x, pos[1].y},{ pos[2].x, pos[2].y},{minFloat.x, minFloat.y})
+					,TriangleRasterizer::EdgeFunction({pos[2].x, pos[2].y},{ pos[0].x,pos[0].y}, {minFloat.x, minFloat.y}) };
 			}
-			static std::array < glm::vec<2,float>,3> InitializeEdgeDelta(const std::array<glm::vec<4, float>, 3>& pos)
+			static std::array < glm::vec<2, float>, 3> InitializeEdgeDelta(const std::array<glm::vec<4, float>, 3>& pos)
 			{
 				return { glm::vec<2, float>{pos[1].y - pos[0].y,-(pos[1].x - pos[0].x) }
-					      ,glm::vec<2, float>{ pos[2].y - pos[1].y,-(pos[2].x - pos[1].x) }
-					      ,glm::vec<2, float>{ pos[0].y - pos[2].y,-(pos[0].x - pos[2].x) }
+						  ,glm::vec<2, float>{ pos[2].y - pos[1].y,-(pos[2].x - pos[1].x) }
+						  ,glm::vec<2, float>{ pos[0].y - pos[2].y,-(pos[0].x - pos[2].x) }
 				};
 			}
-			
-			static EdgesData InitializeStepEdgeData(glm::vec<2, std::int32_t> block, const box2_t<std::int32_t>& box, const glm::vec<2, std::int32_t>& blockSize, const EdgesData& baseEdge)
+			static edgesData_t InitializeStepEdgeData(glm::vec<2, std::int32_t> block, const box2_t<std::int32_t>& box, const glm::vec<2, std::int32_t>& blockSize, const edgesData_t& baseEdge)
 			{
 				glm::vec<2, float> step = { block.x - box.min.x,block.y - box.min.y };
 				glm::vec<2, float> blockStep = { blockSize.x - 1 ,blockSize.y - 1 };
 
-				EdgesData result;
+				edgesData_t result;
 				result.edgesFn[0] = baseEdge.edgesFn.x + baseEdge.edgesFnDelta[0].y * step.y + baseEdge.edgesFnDelta[0].x * step.x;
 				result.edgesFn[1] = baseEdge.edgesFn.y + baseEdge.edgesFnDelta[1].y * step.y + baseEdge.edgesFnDelta[1].x * step.x;
 				result.edgesFn[2] = baseEdge.edgesFn.z + baseEdge.edgesFnDelta[2].y * step.y + baseEdge.edgesFnDelta[2].x * step.x;
@@ -739,7 +1075,7 @@ struct Atribut
 
 				return result;
 			}
-			static bool IsBlockOut(const EdgesData& blockEdgeData)
+			static bool IsBlockOut(const edgesData_t& blockEdgeData)
 			{
 
 				float abBlockEdgeMax = blockEdgeData.edgesFn[0] + std::max(blockEdgeData.edgesFnDelta[0].x, 0.f) + std::max(blockEdgeData.edgesFnDelta[0].y, 0.f);
@@ -750,7 +1086,7 @@ struct Atribut
 					return true;
 				return false;
 			}
-			static bool IsBlockFullyInside(const EdgesData& blockEdgeData)
+			static bool IsBlockFullyInside(const edgesData_t& blockEdgeData)
 			{
 				float abBlockEdgeMin = blockEdgeData.edgesFn[0] + std::min(blockEdgeData.edgesFnDelta[0].x, 0.f) + std::min(blockEdgeData.edgesFnDelta[0].y, 0.f);
 				float bcBlockEdgeMin = blockEdgeData.edgesFn[1] + std::min(blockEdgeData.edgesFnDelta[1].x, 0.f) + std::min(blockEdgeData.edgesFnDelta[1].y, 0.f);
@@ -760,163 +1096,38 @@ struct Atribut
 					return true;
 				return false;
 			}
-			static glm::vec<3,float> GetInvW(const std::array<glm::vec<4, float>, 3>& position)
+			static glm::vec<3, float> GetInvW(const std::array<glm::vec<4, float>, 3>& position)
 			{
 				return { 1.f / position[0].w ,1.f / position[1].w, 1.f / position[2].w };
 			}
-			static DeltaData<float> SetupWData(glm::vec<3, float> baseInvW, const EdgesData& baseEdgeData, float invArea)
+			static deltaData_t<float> SetupLinearData(glm::vec<3, float> base, const edgesData_t& baseEdgeData, float invArea)
 			{
-				DeltaData<float> result;
+				deltaData_t<float> result;
 				result.data = {};
-				result.delta[0] = (baseEdgeData.edgesFnDelta[0].x * baseInvW[2] + baseEdgeData.edgesFnDelta[1].x * baseInvW[0] + baseEdgeData.edgesFnDelta[2].x * baseInvW[1]) * invArea;
-				result.delta[1] = (baseEdgeData.edgesFnDelta[0].y * baseInvW[2] + baseEdgeData.edgesFnDelta[1].y * baseInvW[0] + baseEdgeData.edgesFnDelta[2].y * baseInvW[1]) * invArea;
+				result.delta[0] = (baseEdgeData.edgesFnDelta[0].x * base[2] + baseEdgeData.edgesFnDelta[1].x * base[0] + baseEdgeData.edgesFnDelta[2].x * base[1]) * invArea;
+				result.delta[1] = (baseEdgeData.edgesFnDelta[0].y * base[2] + baseEdgeData.edgesFnDelta[1].y * base[0] + baseEdgeData.edgesFnDelta[2].y * base[1]) * invArea;
 				return result;
 			}
-			static void UpdateWData(glm::vec<3,float> baseInvW,const EdgesData& blockEdgeData,float invArea, DeltaData<float>& wData)
+			static void UpdateLinearData(glm::vec<3, float> base, const edgesData_t& blockEdgeData, float invArea, deltaData_t<float>& data)
 			{
-				wData.data= (blockEdgeData.edgesFn[0] * baseInvW[2] + blockEdgeData.edgesFn[1] * baseInvW[0] + blockEdgeData.edgesFn[2] * baseInvW[1]) * invArea;
+				data.data = (blockEdgeData.edgesFn[0] * base[2] + blockEdgeData.edgesFn[1] * base[0] + blockEdgeData.edgesFn[2] * base[1]) * invArea;
 			}
-			static DeltaData<Interpolateur<vertex_t>> SetupInterData(const  std::array<Interpolateur<vertex_t>, 3>& startInter, const EdgesData& baseEdgeData, float invArea)
+			static deltaData_t<attributeData_t> SetupInterData(const  std::array<attributeData_t, 3>& startInter, const edgesData_t& baseEdgeData, float invArea)
 			{
-				DeltaData<Interpolateur<vertex_t>> result;
+				deltaData_t<attributeData_t> result;
 				result.data = {};
-				result.delta[0].InitIncrement<true>(startInter, baseEdgeData, invArea);
-				result.delta[1].InitIncrement<false>(startInter, baseEdgeData, invArea);
-
-				
+				result.delta[0].InitGradiant<true>(startInter, baseEdgeData, invArea);
+				result.delta[1].InitGradiant<false>(startInter, baseEdgeData, invArea);
 				return result;
 			}
-			static void UpdateInterData(const  std::array<Interpolateur<vertex_t>, 3>& startInter, const EdgesData& blockEdgeData, float invArea, DeltaData<Interpolateur<vertex_t>>& interData)
+			static void UpdateInterData(const  std::array<attributeData_t, 3>& startInter, const edgesData_t& blockEdgeData, float invArea, deltaData_t<attributeData_t>& interData)
 			{
-				interData.data.InitStart(startInter, blockEdgeData, invArea);
-			}
-			static void Compute(const triangle_t& triangle, const viewPort_t& viewPort, Image& image)
-			{
-				// position
-				const std::array<glm::vec<4, float>, 3> position = Rasterizer2::GetPosition(triangle);
-				// positon
-				// area
-				float area = GetArea(position);
-				if (!IsValidArea(area))
-					return;
-				float invArea = 1.f / area;
-				// area
-				// box
-				box2_t<std::int32_t> box = GetBox(position, viewPort);
-				// box
-
-				EdgesData data;
-				data.edgesFn = InitializeEdgeFunction(position, box);
-				data.edgesFnDelta = InitializeEdgeDelta(position);
-
-				glm::vec<3, float> baseInvW = GetInvW(position);
-
-				std::array<Interpolateur<vertex_t>, 3> inter;
-				inter[0].Init(triangle[0], baseInvW[0]);
-				inter[1].Init(triangle[1], baseInvW[1]);
-				inter[2].Init(triangle[2], baseInvW[2]);
-
- 				Loop(triangle,box, data,baseInvW,invArea,inter, image);
-			}
-			static void Loop(const triangle_t& triangle,const box2_t<std::int32_t>& box,const EdgesData& baseEdgeData,const glm::vec<3,float>& baseInvW,float invArea,const  std::array<Interpolateur<vertex_t>, 3>& startInter,Image& image)
-			{
-
-				DeltaData<float> wData = SetupWData(baseInvW, baseEdgeData, invArea);
-				DeltaData<Interpolateur<vertex_t>> interData = SetupInterData(startInter, baseEdgeData, invArea);
-
-
-				std::array <glm::vec<3, float>, 2> edgesFnIncrement = { glm::vec<3, float>(baseEdgeData.edgesFnDelta[0].x, baseEdgeData.edgesFnDelta[1].x, baseEdgeData.edgesFnDelta[2].x),glm::vec<3, float>(baseEdgeData.edgesFnDelta[0].y, baseEdgeData.edgesFnDelta[1].y, baseEdgeData.edgesFnDelta[2].y) };
-
-				glm::vec<2, std::int32_t> blockSize = {};
-				for (std::int32_t blockY = box.min.y; blockY <= box.max.y; blockY += blockDim.y)
-				{
-					blockSize.y = std::min(blockDim.y, box.max.y - blockY + 1);
-					for (std::int32_t blockX = box.min.x; blockX <= box.max.x; blockX += blockDim.x)
-					{
-						blockSize.x = std::min(blockDim.x, box.max.x - blockX + 1);
-						glm::vec<2, std::int32_t> blockOrigin = { blockX, blockY };
-						EdgesData blockEdgeData = InitializeStepEdgeData(blockOrigin, box, blockSize, baseEdgeData);
-
-						if (IsBlockOut(blockEdgeData))
-							continue;
-
-						UpdateWData(baseInvW, blockEdgeData,invArea, wData);
-						UpdateInterData(startInter, blockEdgeData, invArea, interData);
-
-						if (IsBlockFullyInside(blockEdgeData))
-						{
-							PixelLoopInside(triangle, { blockSize, blockOrigin }, wData, interData, image);
-						}
-						else
-						{
-							PixelLoopClassic(triangle, { blockSize, blockOrigin }, blockEdgeData, edgesFnIncrement, wData, interData, image);
-						}
-					}
-				}
-			}
-
-			static void PixelLoopInside(const triangle_t& triangle, const BlockData& block, DeltaData<float>& wData, DeltaData<Interpolateur<vertex_t>>& interData, Image& image)
-			{
-				for (std::int32_t y = 0; y < block.blockSize.y; ++y)
-				{
-					float w = wData.data;
-					Interpolateur<vertex_t> inter = interData.data;
-					std::uint32_t* pixelPtr = image.buffer + ((block.blockOrigin.y + y) * image.bufferWidth + block.blockOrigin.x);
-					for (std::int32_t x = 0; x < block.blockSize.x; ++x)
-					{
-						{
-							float currentW = 1.f / w;
-							vertex_t fragment = triangle[0];
-							inter.Apply(fragment, currentW);
-							glm::vec4 fragColor = fragment.color * 255.f;
-							std::uint32_t r = static_cast<std::uint32_t>(fragColor.x);
-							std::uint32_t g = static_cast<std::uint32_t>(fragColor.y);
-							std::uint32_t b = static_cast<std::uint32_t>(fragColor.z);
-							std::uint32_t a = static_cast<std::uint32_t>(fragColor.a);
-							*pixelPtr = (r) | (g << 8) | (b << 16) | (a << 24);
-						}
-						++pixelPtr;
-						w += wData.delta[0];
-						inter += interData.delta[0];
-					}
-					wData.data += wData.delta[1];
-					interData.data += interData.delta[1];
-				}
-			}
-			static void PixelLoopClassic(const triangle_t& triangle,const BlockData& block,EdgesData& currentEdgeData,const std::array <glm::vec<3, float>, 2>& edgeIncrement, DeltaData<float>& wData, DeltaData<Interpolateur<vertex_t>>& interData, Image& image)
-			{
-				for (std::int32_t y = 0; y < block.blockSize.y; ++y)
-				{
-					glm::vec<3, float> edgesFn = currentEdgeData.edgesFn;
-					float w = wData.data;
-					Interpolateur<vertex_t> inter = interData.data;
-					std::uint32_t* pixelPtr = image.buffer + ((block.blockOrigin.y + y) * image.bufferWidth + block.blockOrigin.x);
-					for (std::int32_t x = 0; x < block.blockSize.x; ++x)
-					{
-						if (edgesFn[0] >= 0 && edgesFn[1] >= 0 && edgesFn[2] >= 0)
-						{
-							float currentW = 1.f / w;
-							vertex_t fragment = triangle[0];
-							inter.Apply(fragment, currentW);
-							glm::vec4 fragColor = fragment.color * 255.f;
-							std::uint32_t r = static_cast<std::uint32_t>(fragColor.x);
-							std::uint32_t g = static_cast<std::uint32_t>(fragColor.y);
-							std::uint32_t b = static_cast<std::uint32_t>(fragColor.z);
-							std::uint32_t a = static_cast<std::uint32_t>(fragColor.a);
-							*pixelPtr = (r) | (g << 8) | (b << 16) | (a << 24);
-						}
-						++pixelPtr;
-						edgesFn += edgeIncrement[0];
-						w += wData.delta[0];
-						inter += interData.delta[0];
-					}
-					currentEdgeData.edgesFn += edgeIncrement[1];
-					wData.data += wData.delta[1];
-					interData.data += interData.delta[1];
-				}
+				interData.data.InitOrigin(startInter, blockEdgeData, invArea);
 			}
 		};
 	}
+	
+
 	
 
 
@@ -926,10 +1137,9 @@ struct Atribut
 	static constexpr std::int32_t renderWidth = 320;
 
 	static constexpr std::int32_t renderHeight = 240;
-	// TODO regroupe interpolateur
-	// TODO passer en full template
-    // TODO faire le test top left
+
     // TODO bouger dans un fichier a part 
+	// TODO zoption bias blend 
 	int main(int argc, char* argv[])
 	{
 		FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
@@ -975,25 +1185,36 @@ struct Atribut
 			}
 
 			std::memset(frameBuffer.data(), 0, frameBuffer.size() * sizeof(std::uint32_t));
-			std::memset(zBuffer.data(), 0, zBuffer.size() * sizeof(float));
-
+			std::fill(zBuffer.begin(), zBuffer.end(), 1.f);
 			//TODO vertex gestion
 			{
-				a.pos.x = 0;
-				a.pos.y = static_cast<float>(size.y - 1) ;
-				a.pos.w = 1.0f;
-				a.color = { 1,0,0,1 };
-				b.pos.x = 0;
-				b.pos.y = 0;
-				b.pos.w = 1.f;
-				b.color = { 0,1,0,1 };
-				c.pos.x = static_cast<float>(size.x - 1) ;
-				c.pos.y = 0;
-				c.pos.w = 1.f;
-				c.color = { 0,0,1,1 };
-				d.pos.x = static_cast<float>(size.x - 1) ;
-				d.pos.y = static_cast<float>(size.y - 1) ;
-				d.color = { 1,1,1,1 };
+				// Rouge : loin, en haut à gauche
+				a.pos.x =0;
+				a.pos.y = 0;
+				a.pos.w = 2.0f;
+				a.pos.z = 1.f;
+				a.color = { 1, 0, 0, 1 };
+
+				// Vert : devant, en bas à gauche
+				b.pos.x = 0.0f;
+				b.pos.y = static_cast<float>(size.y - 1);
+				b.pos.w = 1.0f;
+				b.pos.z =0.f;
+				b.color = { 0, 1, 0, 1 };
+
+				// Bleu : devant, en bas à droite
+				c.pos.x = static_cast<float>(size.x - 1);
+				c.pos.y = static_cast<float>(size.y - 1);
+				c.pos.w = 1.0f;
+				c.pos.z = 0.f;
+				c.color = { 0, 0, 1, 1 };
+
+				// Blanc : loin, en haut à droite
+				d.pos.x = static_cast<float>(size.x - 1);
+				d.pos.y = 0.0f;
+				d.pos.w =  2.0f;
+				d.pos.z = 1.0f;
+				d.color = { 1, 1, 1, 1 };
 			}
 
 
@@ -1004,30 +1225,38 @@ struct Atribut
 			port.y =0;
 			port.width = size.x;
 			port.height = size.y ;
-			
-			Test::Image image;
+
+			FDB::Pipeline::Image<std::uint32_t> image;
 			image.buffer = frameBuffer.data();
 			image.bufferHeight = size.y;
 			image.bufferWidth = size.x;
 
+			FDB::Pipeline::Image<float> z_image;
+			z_image.buffer = zBuffer.data();
+			z_image.bufferHeight = size.y;
+			z_image.bufferWidth = size.x;
 			auto bench = [&](auto fn, const char* name)
 				{
-					fn(); // échauffement
+					static constexpr int n = 1000;
+					const double freq = double(SDL_GetPerformanceFrequency());
 					Uint64 s = SDL_GetPerformanceCounter();
-					for (int i = 0; i < 1000; ++i) fn();
+					for (int i = 0; i < n; ++i) fn();
 					Uint64 e = SDL_GetPerformanceCounter();
-					printf("%s : %.3f ms/appel\n", name,
-						double(e - s) * 1000.0 / double(SDL_GetPerformanceFrequency()) / 1000.0);
+
+					double totalMs = double(e - s) * 1000.0 / freq;
+					printf("%s : %.4f ms/appel (%d iterations, %.2f ms total)\n",
+						name, totalMs / n, n, totalMs);
 				};
 
-			bench([&] { Test::Rasterizer2::Compute({ a,c,b }, port, image);}, "Rasterizer V2");
-			bench([&] { Rasterizer::Compute<Vertex, VertexInterpolation>({ a, c, b }, port, frameBuffer.data(), zBuffer.data(), size.x); }, "Rasterizer V1");
+			//bench([&] { FDB::Pipeline::Rasterizer::TriangleRasterizer<Vertex>::Compute<Test2::FragmentState::Keep>({ a,c,b }, port, image, [&](const Vertex& vertex, const glm::vec<2, std::int32_t>& pixel, float) -> Test2::fragment_output_t<Test2::FragmentState::Keep> { return  Test2::fragment_output_t<Test2::FragmentState::Keep>::Color(vertex.color);});}, "Rasterizer V2");
+			//bench([&] { Rasterizer::Compute<Vertex, VertexInterpolation>({ a, c, b }, port, frameBuffer.data(), zBuffer.data(), size.x); }, "Rasterizer V1");
 			//Rasterizer::Compute<Vertex,VertexInterpolation>({ a, c, b }, port, frameBuffer.data(),zBuffer.data(), size.x);
-			
-			Test::Rasterizer2::Compute({a,c,b}, port, image);
-			//Rasterizer::ComputeWithouGLM({ a, b, c }, port, frameBuffer.data(), size.x);
-
-
+			using rasterizer_t = FDB::Pipeline::Rasterizer::TriangleRasterizer<Vertex>;
+			using fragmentState_t = FDB::Pipeline::Rasterizer::FragmentState;
+			using fragmentOutput = FDB::Pipeline::Rasterizer::fragment_output_t<fragmentState_t::Keep>;
+			auto fragmentShader = [&](const Vertex& vertex, const glm::vec<2, std::int32_t>& pixel, float) { return  fragmentOutput::Color(vertex.color);};
+			rasterizer_t::Compute<fragmentState_t::Keep>({ a,b,c }, port, image, z_image, fragmentShader);
+			rasterizer_t::Compute<fragmentState_t::Keep>({ c,d,a }, port, image, z_image, fragmentShader);
 			texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
 			renderer.RenderTexture(texture);
 			renderer.Present();
