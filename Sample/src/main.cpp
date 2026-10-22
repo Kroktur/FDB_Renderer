@@ -17,7 +17,8 @@
 #include "Pipeline/Pipeline.h"
 #include "Pipeline/Transform.h"
 
-	enum format
+
+enum format
 {
 	float1,
 	float2,
@@ -58,9 +59,9 @@ struct Atribut
 		struct Image
 		{
 			using value_type = T;
-			value_type* buffer;
-			std::int32_t bufferWidth;
-			std::int32_t bufferHeight;
+			value_type* buffer = nullptr;
+			std::int32_t bufferWidth = 0;
+			std::int32_t bufferHeight = 0;
 		};
 	}
 
@@ -77,6 +78,7 @@ struct Atribut
 		glm::vec<4, float> color;
 		static  constexpr  FDB::Pipeline::Attribute::Data PosAttribute()
 		{
+			
 			return FDB::Pipeline::Attribute::Data{ FDB::Pipeline::Attribute::format::Float4,offsetof(Vertex, pos) };
 		}
 		static constexpr  std::array<FDB::Pipeline::Attribute::Data, 2> AllAttributes()
@@ -90,7 +92,6 @@ struct Atribut
 
 	namespace FDB::Pipeline::Rasterizer
 	{
-		enum class BlendOp;
 
 		struct EdgesData
 		{
@@ -351,15 +352,35 @@ struct Atribut
 		template<FragmentState state>
 		using fragment_output_t = FragmentOutput<state>;
 
+		template<Attribute::ValidVertexT VertexT>
+		struct FragmentInput
+		{
+			using vertex_t = VertexT;
+			vertex_t vertex;
+			vertex_t vertexDx ;
+			vertex_t vertexDy ;
 
-		template<typename fragmentT,FragmentState state,typename FN> 
-		concept ValidFragmentFunction = std::is_invocable_r_v<fragment_output_t<state>, FN, const fragmentT&, const glm::vec<2, std::int32_t>&, float>;
+			 glm::vec<2, std::int32_t> pixel;
+
+			float z;
+			float zDx;
+			float zDy;
+
+			float invW;
+			float invWDx;
+			float invWDy;
+		};
+		template<Attribute::ValidVertexT VertexT>
+		using fragment_input_t = FragmentInput<VertexT>;
+
+		template<typename fragmentT,FragmentState state,typename FN>
+		concept ValidFragmentFunction = std::is_invocable_r_v<fragment_output_t<state>, FN, const FragmentInput<fragmentT>>;
 	
 		
-		enum class BlendFactor
+		enum class BlendFactor : std::uint8_t
 		{
 			Zero,
-			rOne,
+			One,
 			SrcColor,
 			OneMinusSrcColor,
 			DstColor,
@@ -370,8 +391,9 @@ struct Atribut
 			OneMinusDstAlpha
 		};
 
-		enum class BlendOp
+		enum class BlendOp: std::uint8_t
 		{
+			None,
 			Add,
 			Sub,
 			RSub,
@@ -389,7 +411,7 @@ struct Atribut
 				{
 					return glm::vec<4, float>(0.f);
 				}
-				else if constexpr (dataT == BlendFactor::rOne)
+				else if constexpr (dataT == BlendFactor::One)
 				{
 					return glm::vec<4, float>(1.f);
 				}
@@ -399,8 +421,7 @@ struct Atribut
 				}
 				else if constexpr (dataT == BlendFactor::OneMinusSrcColor)
 				{
-					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
-					return  vec1 - srcColor;
+					return  glm::vec4(1.f) - srcColor;
 				}
 				else if constexpr (dataT == BlendFactor::DstColor)
 				{
@@ -408,8 +429,7 @@ struct Atribut
 				}
 				else if constexpr (dataT == BlendFactor::OneMinusDstColor)
 				{
-					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
-					return vec1 - dstColor;
+					return glm::vec4(1.f) - dstColor;
 				}
 				else if constexpr (dataT == BlendFactor::SrcAlpha)
 				{
@@ -417,34 +437,35 @@ struct Atribut
 				}
 				else if constexpr (dataT == BlendFactor::OneMinusSrcAlpha)
 				{
-					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
-					return vec1 - glm::vec<4, float>(srcColor.a);
+					return glm::vec4(1.f) - glm::vec<4, float>(srcColor.a);
 				}
 				else if constexpr (dataT == BlendFactor::DstAlpha)
 				{
-					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
 					return glm::vec<4, float>(dstColor.a);
 				}
 				else
 				{
-					static constexpr  glm::vec<4, float> vec1 = glm::vec<4, float>(1.f);
-					return vec1 - glm::vec<4, float>(dstColor.a);
+					return glm::vec4(1.f) - glm::vec<4, float>(dstColor.a);
 				}
 			}
-			template<BlendOp opT>
-			static glm::vec<4,float> ColorToBlend(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& srcFactor, const glm::vec<4, float>& dstColor, const glm::vec<4, float>& dstFactor)
+			template<BlendFactor factorSrcT, BlendFactor factorDstT,BlendOp opT>
+			static glm::vec<4,float> ColorToBlend(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& dstColor)
 			{
-				if constexpr (opT == BlendOp::Add)
+				if constexpr (opT == BlendOp::None)
 				{
-					return srcColor* srcFactor + dstColor * dstFactor;
+					return srcColor;
+				}
+				else if constexpr (opT == BlendOp::Add)
+				{
+					return srcColor* ColorHelper::FactorToColor<factorSrcT>(srcColor,dstColor) + dstColor * ColorHelper::FactorToColor<factorDstT>(srcColor, dstColor);
 				}
 				else if constexpr (opT == BlendOp::Sub)
 				{
-					return srcColor * srcFactor - dstColor * dstFactor;
+					return srcColor * ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor) - dstColor * ColorHelper::FactorToColor<factorDstT>(srcColor, dstColor);
 				}
 				else if constexpr (opT == BlendOp::RSub)
 				{
-					return   dstColor * dstFactor - srcColor * srcFactor;
+					return   dstColor * ColorHelper::FactorToColor<factorDstT>(srcColor, dstColor) - srcColor * ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor);
 				}
 				else if constexpr (opT == BlendOp::Min)
 				{
@@ -465,26 +486,205 @@ struct Atribut
 					return result;
 				}
 			}
+
 		};
 	
-		template<BlendFactor factorSrcT,BlendFactor factorDstT,BlendOp opT>
+		template<BlendFactor factorSrcT ,BlendFactor factorDstT ,BlendOp opT >
 		struct BlendData
 		{
 			using color_t = glm::vec<4, float>;
+
 			static color_t Blend(const color_t& srcColor ,const color_t& dstColor)
 			{
-				return ColorHelper::ColorToBlend<opT>(srcColor, ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor), dstColor, ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor));
+				return ColorHelper::ColorToBlend<factorSrcT, factorDstT, opT>(srcColor,dstColor);
+			}
+		};
+		template<BlendFactor factorSrcT , BlendFactor factorDstT , BlendOp opT >
+		using blendData_t = BlendData < factorSrcT, factorDstT, opT >;
+
+		using default_blend_t = blendData_t<BlendFactor::SrcColor, BlendFactor::DstColor, BlendOp::None>;
+
+		template<typename T>
+		struct is_blendData : std::false_type {};
+
+		template<BlendFactor factorSrcT, BlendFactor factorDstT, BlendOp opT >
+		struct is_blendData<blendData_t<factorSrcT, factorDstT, opT>> : std::true_type {};
+		template<typename T>
+		static constexpr bool is_blendData_v = is_blendData<T>::value;
+		template<typename T>
+		concept ValidBlendData = is_blendData_v<T>;
+
+
+		enum class DepthOp : std::uint8_t
+		{
+			Never,
+			Less,
+			Equal,
+			NotEqual,
+			LessOrEqual,
+			Greater,
+			GreaterOrEqual,
+			Always
+		};
+
+		struct DepthHelper
+		{
+			template<DepthOp opT>
+			static bool DepthTest(float srcZ,float dstZ)
+			{
+				if constexpr (opT == DepthOp::Never)
+					return false;
+				else if constexpr (opT == DepthOp::Less)
+					return srcZ < dstZ;
+				else if constexpr (opT == DepthOp::Equal)
+					return srcZ == dstZ;
+				else if constexpr (opT == DepthOp::NotEqual)
+					return srcZ != dstZ;
+				else if constexpr (opT == DepthOp::LessOrEqual)
+					return srcZ <= dstZ;
+				else if constexpr (opT == DepthOp::Greater)
+					return srcZ > dstZ;
+				else if constexpr (opT == DepthOp::GreaterOrEqual)
+					return srcZ >= dstZ;
+				else
+					return true;
+			}
+		};
+
+		template<bool zTestEnableT ,bool zWriteEnableT ,DepthOp opt>
+		struct DepthData
+		{
+			static constexpr bool zTestEnabled_v = zTestEnableT;
+			static constexpr bool zWriteEnable_v = zWriteEnableT;
+
+			static bool PassDepthTest(float srcZ, float dstZ)
+			{
+				return DepthHelper::DepthTest<opt>(srcZ, dstZ);
+			}
+		};
+		template<bool zTestEnableT, bool zWriteEnableT, DepthOp opt>
+		using depthData_t = DepthData<zTestEnableT, zWriteEnableT, opt>;
+		using default_depthData_t = DepthData<true, true, DepthOp::Less>;
+
+		template<typename T>
+		struct is_depthData : std::false_type{};
+		template<bool zTestEnableT, bool zWriteEnableT, DepthOp opt>
+		struct is_depthData<depthData_t<zTestEnableT, zWriteEnableT, opt>> : std::true_type{};
+
+		template<typename T>
+		static constexpr bool is_depthData_v = is_depthData<T>::value;
+
+		template<typename T>
+		concept ValidDepthData = is_depthData_v<T>;
+
+		enum class CullFace : std::uint8_t
+		{
+			CW,
+			CCW,
+		};
+
+		enum class CullMode : std::uint8_t
+		{
+			None,
+			Back,
+			Front
+		};
+		template<CullFace faceT, CullMode modeT>
+		struct CullData
+		{
+			static bool ValidArea(float& area,std::array<glm::vec<4,float>,3>& pos)
+			{
+				if constexpr (modeT == CullMode::None)
+				{
+					if (area > 0)
+						return true;
+
+					if (area == 0)
+						return false;
+
+					CullData::InvArea(area, pos);
+					return true;
+				}
+				else if constexpr ((modeT == CullMode::Front && faceT == CullFace::CCW )||(modeT == CullMode::Back && faceT == CullFace::CW))
+				{
+					if (area >= 0)
+						return false;
+					InvArea(area, pos);
+					return true;
+				}
+				else 
+				{
+					return area > 0;
+				}
 			}
 		private:
-			
-
+			static void InvArea(float& area,std::array<glm::vec<4, float>, 3>& pos)
+			{
+				area = -area;
+				glm::vec<4, float> tmpPos = pos[1];
+				pos[1] = pos[2];
+				pos[2] = tmpPos;
+			}	
 		};
+
+		template<CullFace faceT, CullMode modeT>
+		using cullData_t = CullData<faceT, modeT>;
+
+		using default_cullData_t = cullData_t<CullFace::CCW, CullMode::Back>;
+
+
+		template<typename T>
+		struct is_cullData : std::false_type{};
+		template<CullFace faceT, CullMode modeT>
+		struct is_cullData<cullData_t<faceT,modeT>> : std::true_type{};
+
+
+		template<typename T>
+		static constexpr bool is_cullData_v = is_cullData<T>::value;
+
+		template<typename T>
+		concept ValidCullData = is_cullData_v<T>;
+
+		enum class writeMaks : std::uint8_t
+		{
+			None = 0,
+			R = 1 << 3,
+			G = 1 << 3,
+			B = 1 << 1,
+			A = 1 << 0,
+		};
+		template<writeMaks... masks> requires (sizeof...(masks) <= 4)
+		struct WriteMaskData
+		{
+			static constexpr std::uint8_t mask = static_cast<std::uint8_t>(writeMaks::None) | (static_cast<std::uint8_t>(masks) | ...);
+		};
+
+		template<writeMaks... masks> requires (sizeof...(masks) <= 4)
+		using writeMaskData_t = WriteMaskData<masks...>;
+
+		using r_writeMaskData_t = writeMaskData_t<writeMaks::R>;
+		using g_writeMaskData_t = writeMaskData_t<writeMaks::G>;
+		using b_writeMaskData_t = writeMaskData_t<writeMaks::B>;
+		using a_writeMaskData_t = writeMaskData_t<writeMaks::A>;
+		using rgb_writeMaskData_t = WriteMaskData<writeMaks::R, writeMaks::G, writeMaks::B>;
+		using rgba_writeMaskData_t = WriteMaskData<writeMaks::R, writeMaks::G, writeMaks::B, writeMaks::A>;
+
+		template<typename T>
+		struct is_writeMaskData : std::false_type{};
+		template<writeMaks... masks> requires (sizeof...(masks) <= 4)
+		struct is_writeMaskData<writeMaskData_t<masks...>> : std::true_type{};
+
+		template<typename T>
+		static constexpr bool is_writeMaskData_v = is_writeMaskData<T>::value;
 		
-	
+		template<typename T>
+		concept ValidWriteData = is_writeMaskData_v<T>;
+
+
+
 		template<FDB::Pipeline::Attribute::ValidVertexT VertexT> 
 		struct TriangleRasterizer
 		{
-
 			using fragment = VertexT;
 			using vertex_t = VertexT;
 			using triangle_t = std::array<vertex_t, 3>;
@@ -516,15 +716,31 @@ struct Atribut
 				deltaData_t<attributeData_t> interData;
 				std::array <glm::vec<3, float>, 2> edgeIncrement;
 			};
-			template< fragmentState_t state,typename fragmentShaderT> requires(ValidFragmentFunction<fragment,state,fragmentShaderT>)
-			static void Compute(const triangle_t& triangle, const viewPort_t& viewPort, Image<std::uint32_t>& image,Image<float>& zImage,const fragmentShaderT& fragmentShader)
+			struct ApplySetup
+			{
+				attributeData_t inter;
+				glm::vec<2, std::int32_t> pixel;
+				float w;
+				float z;
+				std::uint32_t* imagePtr;
+				float* zImagePtr;
+				glm::vec<4,float>* colorPtr;
+			};
+			struct ImagesData
+			{
+				Image<std::uint32_t> finalImage;
+				Image<glm::vec<4,float>> colorImage;
+				Image<float> zBuffer;
+			};
+			template< fragmentState_t state, ValidCullData cullT = default_cullData_t, ValidBlendData blendT = default_blend_t,ValidDepthData depthT = default_depthData_t, ValidWriteData writeT = rgba_writeMaskData_t,typename fragmentShaderT> requires(ValidFragmentFunction<fragment,state,fragmentShaderT>)
+			static void Compute(const triangle_t& triangle, const viewPort_t& viewPort, const ImagesData& image,const fragmentShaderT& fragmentShader)
 			{
 				// position
-				const std::array<glm::vec<4, float>, 3> position = TriangleRasterizer::GetPosition(triangle);
+				 std::array<glm::vec<4, float>, 3> position = TriangleRasterizer::GetPosition(triangle);
 				// positon
 				// area
 				float area = TriangleRasterizer::GetArea(position);
-				if (!TriangleRasterizer::IsValidArea(area))
+				if (!cullT::ValidArea(area,position))
 					return;
 
 				TriangleSetup setup;
@@ -549,12 +765,11 @@ struct Atribut
 				setup.topLeftRule[1] = TriangleRasterizer::IsTopLeft({ position[1].x, position[1].y }, { position[2].x, position[2].y });
 				setup.topLeftRule[2] = TriangleRasterizer::IsTopLeft({ position[2].x, position[2].y }, { position[0].x, position[0].y });
 
-				TriangleRasterizer::Loop<state,fragmentShaderT>(setup, image,zImage,fragmentShader);
+				TriangleRasterizer::Loop<state,blendT,depthT,writeT,fragmentShaderT>(setup, image,fragmentShader);
 			}
 		private:
-
-			template<fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>)
-			static void Loop(const TriangleSetup& setup, Image<std::uint32_t>& image, Image<float>& zImage,const fragmentShaderT& fragmentShader)
+			template<fragmentState_t state, ValidBlendData blendT, ValidDepthData depthT, ValidWriteData writeT,typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>)
+			static void Loop(const TriangleSetup& setup, const ImagesData& image,const fragmentShaderT& fragmentShader)
 			{
 
 				BlockSetup blockSetup;
@@ -565,6 +780,8 @@ struct Atribut
 				blockSetup.edgeIncrement = {
 					glm::vec<3, float>(setup.baseEdgeData.edgesFnDelta[0].x, setup.baseEdgeData.edgesFnDelta[1].x, setup.baseEdgeData.edgesFnDelta[2].x),
 					glm::vec<3, float>(setup.baseEdgeData.edgesFnDelta[0].y, setup.baseEdgeData.edgesFnDelta[1].y, setup.baseEdgeData.edgesFnDelta[2].y) };
+
+
 
 				
 				for (std::int32_t blockY = setup.box.min.y; blockY <= setup.box.max.y; blockY += blockDim.y)
@@ -589,79 +806,80 @@ struct Atribut
 
 						if (IsBlockFullyInside(blockEdgeData))
 						{
-							TriangleRasterizer::PixelLoopInside<state,fragmentShaderT>(setup.triangle, blockSetup, image,zImage,fragmentShader);
+							TriangleRasterizer::PixelLoopInside < state, blendT, depthT,writeT,fragmentShaderT > (setup.triangle, blockSetup, image, fragmentShader);
 						}
 						else
 						{
-							TriangleRasterizer::PixelLoopClassic<state,fragmentShaderT>(setup.triangle,setup.topLeftRule, blockEdgeData, blockSetup, image,zImage,fragmentShader);
+							TriangleRasterizer::PixelLoopClassic<state,blendT,depthT,writeT,fragmentShaderT>(setup.triangle,setup.topLeftRule, blockEdgeData, blockSetup, image,fragmentShader);
 						}
 					}
 				}
 			}
-
-
-
-
-			template< fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>)
-			static void PixelLoopInside(const triangle_t& triangle, BlockSetup& setup, Image<std::uint32_t>& image, Image<float>& zImage,const fragmentShaderT& fragmentShader)
+			template< fragmentState_t state, ValidBlendData blendT, ValidDepthData depthT, ValidWriteData writeT,typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>)
+			static void PixelLoopInside(const triangle_t& triangle, BlockSetup& setup, const ImagesData& image,const fragmentShaderT& fragmentShader)
 			{
+				ApplySetup applySetup;
+
 				for (std::int32_t y = 0; y < setup.block.blockSize.y; ++y)
 				{
-					float w = setup.wData.data;
-					float z = setup.zData.data;
-					attributeData_t inter = setup.interData.data;
-					glm::vec<2, std::int32_t> pixel{ setup.block.blockOrigin.x,setup.block.blockOrigin.y + y };
-					std::uint32_t* imagePtr = image.buffer + (pixel.y * image.bufferWidth + pixel.x);
-					float* zImagePtr = zImage.buffer + (pixel.y * zImage.bufferWidth + pixel.x);
+					applySetup.w = setup.wData.data;
+					applySetup.z = setup.zData.data;
+					applySetup.inter = setup.interData.data;
+					applySetup.pixel = { setup.block.blockOrigin.x,setup.block.blockOrigin.y + y };
+					applySetup.imagePtr = image.finalImage.buffer + (applySetup.pixel.y * image.finalImage.bufferWidth + applySetup.pixel.x);
+					applySetup.zImagePtr = image.zBuffer.buffer + (applySetup.pixel.y * image.zBuffer.bufferWidth + applySetup.pixel.x);
+					applySetup.colorPtr = image.colorImage.buffer + (applySetup.pixel.y * image.colorImage.bufferWidth + applySetup.pixel.x);
 					for (std::int32_t x = 0; x < setup.block.blockSize.x; ++x)
 					{
-						TriangleRasterizer::ApplyFragment<state, fragmentShaderT>(triangle, inter, w, z, pixel, imagePtr, zImagePtr, fragmentShader);
-						++zImagePtr;
-						++imagePtr;
-						++pixel.x;
-						w += setup.wData.delta[0];
-						z += setup.zData.delta[0];
-						inter += setup.interData.delta[0];
+						TriangleRasterizer::ApplyFragment<state, blendT, depthT,writeT, fragmentShaderT>(triangle, applySetup,setup, fragmentShader);
+						++applySetup.zImagePtr;
+						++applySetup.imagePtr;
+						++applySetup.colorPtr;
+						++applySetup.pixel.x;
+						applySetup.w += setup.wData.delta[0];
+						applySetup.z += setup.zData.delta[0];
+						applySetup.inter += setup.interData.delta[0];
 					}
 					setup.wData.data += setup.wData.delta[1];
 					setup.interData.data += setup.interData.delta[1];
 					setup.zData.data += setup.zData.delta[1];
 				}
 			}
-
 			static bool IsInside(const glm::vec<3, float>& edgesFn,const std::array<bool, 3>& topLeftRule)
 			{
 				return ((topLeftRule[0] == true ? edgesFn[0] >= 0 : edgesFn[0] > 0) && (topLeftRule[1] == true ? edgesFn[1] >= 0 : edgesFn[1] > 0) && (topLeftRule[2] == true ? edgesFn[2] >= 0 : edgesFn[2] > 0));
 			}
-
-			template<fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>)
-			static void PixelLoopClassic(const triangle_t& triangle,const std::array<bool,3>& topLeftRule, edgesData_t& currentEdgeData, BlockSetup& setup, Image<std::uint32_t>& image, Image<float>& zImage,const fragmentShaderT& fragmentShader)
+			template<fragmentState_t state, ValidBlendData blendT, ValidDepthData depthT, ValidWriteData writeT,typename fragmentShaderT > requires(ValidFragmentFunction<fragment, state, fragmentShaderT>)
+			static void PixelLoopClassic(const triangle_t& triangle,const std::array<bool,3>& topLeftRule, edgesData_t& currentEdgeData, BlockSetup& setup, const ImagesData& image,const fragmentShaderT& fragmentShader)
 			{
+				ApplySetup applySetup;
 				for (std::int32_t y = 0; y < setup.block.blockSize.y; ++y)
 				{
-					glm::vec<3, float> edgesFn = currentEdgeData.edgesFn;
-					float w = setup.wData.data;
-					float z = setup.zData.data;
-					attributeData_t inter = setup.interData.data;
+					glm::vec<3,float> edgesFn = currentEdgeData.edgesFn;
+					applySetup.w = setup.wData.data;
+					applySetup.z = setup.zData.data;
+					applySetup.inter = setup.interData.data;
 
-					glm::vec<2, std::int32_t> pixel { setup.block.blockOrigin.x,setup.block.blockOrigin.y + y };
-					std::uint32_t* imagePtr = image.buffer + (pixel.y * image.bufferWidth + pixel.x);
-					float* zImagePtr = zImage.buffer + (pixel.y * zImage.bufferWidth + pixel.x);
+					applySetup.pixel = { setup.block.blockOrigin.x,setup.block.blockOrigin.y + y };
+					applySetup.imagePtr = image.finalImage.buffer + (applySetup.pixel.y * image.finalImage.bufferWidth + applySetup.pixel.x);
+					applySetup.zImagePtr = image.zBuffer.buffer + (applySetup.pixel.y * image.zBuffer.bufferWidth + applySetup.pixel.x);
+					applySetup.colorPtr = image.colorImage.buffer + (applySetup.pixel.y * image.colorImage.bufferWidth + applySetup.pixel.x);
+
 
 					for (std::int32_t x = 0; x < setup.block.blockSize.x; ++x)
 					{
 						if (TriangleRasterizer::IsInside(edgesFn,topLeftRule))
 						{
-							
-							TriangleRasterizer::ApplyFragment<state, fragmentShaderT>(triangle, inter, w, z, pixel, imagePtr, zImagePtr, fragmentShader);
+							TriangleRasterizer::ApplyFragment<state,blendT,depthT,writeT,fragmentShaderT>(triangle, applySetup,setup, fragmentShader);
 						}
-						++imagePtr;
-						++zImagePtr;
-						++pixel.x;
+						++applySetup.imagePtr;
+						++applySetup.zImagePtr;
+						++applySetup.colorPtr;
+						++applySetup.pixel.x;
 						edgesFn += setup.edgeIncrement[0];
-						w += setup.wData.delta[0];
-						z += setup.zData.delta[0];
-						inter += setup.interData.delta[0];
+						applySetup.w += setup.wData.delta[0];
+						applySetup.z += setup.zData.delta[0];
+						applySetup.inter += setup.interData.delta[0];
 					}
 					currentEdgeData.edgesFn += setup.edgeIncrement[1];
 					setup.wData.data += setup.wData.delta[1];
@@ -670,63 +888,105 @@ struct Atribut
 				}
 			}
 		private:
-			template<fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT> && state == fragmentState_t::Keep)
-			static void ApplyFragment(const triangle_t& triangle,const attributeData_t& inter,float w,float z,const glm::vec<2,float>& pixel, std::uint32_t* imagePtr, float* zImagePtr,const fragmentShaderT& fragmentShader)
+			template<fragmentState_t state,typename fragmentShaderT>
+			static  fragment_output_t<state> ExecuteFragmentShader(const ApplySetup& applySetup, const BlockSetup& blockSetup,const fragmentShaderT& fragmentShader)
 			{
-				if (z >= *zImagePtr)
-					return;
-				float currentW = 1.f / w;
-				vertex_t fragment = triangle[0];
-				inter.Apply(fragment, currentW);
-			    fragment_output_t<state> out = fragmentShader(fragment, pixel, z);
-				*zImagePtr = z;
-				glm::vec4 fragColor = out.color * 255.f;
-				std::uint32_t r = static_cast<std::uint32_t>(fragColor.x);
-				std::uint32_t g = static_cast<std::uint32_t>(fragColor.y);
-				std::uint32_t b = static_cast<std::uint32_t>(fragColor.z);
-				std::uint32_t a = static_cast<std::uint32_t>(fragColor.a);
-				*imagePtr = (r) | (g << 8) | (b << 16) | (a << 24);
+				fragment_input_t<vertex_t> fragInput;
+				float realW = 1.f / applySetup.w;
+
+				applySetup.inter.Apply(fragInput.vertex, realW);
+				blockSetup.interData.delta[0].Apply(fragInput.vertexDx, realW);
+				blockSetup.interData.delta[1].Apply(fragInput.vertexDy, realW);
+
+				fragInput.pixel = applySetup.pixel;
+
+				fragInput.invW = applySetup.w;
+				fragInput.invWDx = blockSetup.wData.delta[0];
+				fragInput.invWDy = blockSetup.wData.delta[1];
+
+				fragInput.z = applySetup.z;
+				fragInput.zDx = blockSetup.zData.delta[0];
+				fragInput.zDy = blockSetup.zData.delta[1];
+
+				return fragmentShader(fragInput);
+			}
+			template<fragmentState_t state, ValidBlendData blendT, ValidDepthData depthT, ValidWriteData writeT,typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT> && state == fragmentState_t::Keep)
+			static void ApplyFragment(const triangle_t& triangle,const ApplySetup& applySetup,const BlockSetup& blockSetup,const fragmentShaderT& fragmentShader)
+			{
+
+				if constexpr (depthT::zTestEnabled_v)
+				{
+					if (!depthT::PassDepthTest(applySetup.z, *applySetup.zImagePtr))
+						return;
+				}
+				fragment_output_t<state> out = TriangleRasterizer::ExecuteFragmentShader < state, fragmentShaderT > (applySetup, blockSetup, fragmentShader);
+				TriangleRasterizer::ApplyColor<blendT,writeT>(out.color, applySetup.imagePtr, applySetup.colorPtr);
+				if constexpr (depthT::zWriteEnable_v)
+				{
+					*applySetup.zImagePtr = applySetup.z;
+				}
 				
 			}
-			template< fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>&& state == fragmentState_t::Discard)
-			static void ApplyFragment(const triangle_t& triangle, const attributeData_t& inter, float w, float z, const glm::vec<2, float>& pixel, std::uint32_t* imagePtr, float* zImagePtr, const fragmentShaderT& fragmentShader)
+			template< fragmentState_t state, ValidBlendData blendT, ValidDepthData depthT, ValidWriteData writeT, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>&& state == fragmentState_t::Discard)
+			static void ApplyFragment(const triangle_t& triangle, const ApplySetup& applySetup,const  BlockSetup& blockSetup, const fragmentShaderT& fragmentShader)
 			{
-				if (z >= *zImagePtr)
-					return;
-				float currentW = 1.f / w;
-				vertex_t fragment = triangle[0];
-				inter.Apply(fragment, currentW);
-				fragment_output_t<state> out = fragmentShader(fragment, pixel, z);
+				if constexpr (depthT::zTestEnabled_v)
+				{
+					if (!depthT::PassDepthTest(applySetup.z, *applySetup.zImagePtr))
+						return;
+				}
+				fragment_output_t<state> out = TriangleRasterizer::ExecuteFragmentShader<state, fragmentShaderT>(applySetup, blockSetup,fragmentShader);
 				if (out.discard)
 					return;
-				*zImagePtr = z;
-				glm::vec4 fragColor = out.color * 255.f;
-				std::uint32_t r = static_cast<std::uint32_t>(fragColor.x);
-				std::uint32_t g = static_cast<std::uint32_t>(fragColor.y);
-				std::uint32_t b = static_cast<std::uint32_t>(fragColor.z);
-				std::uint32_t a = static_cast<std::uint32_t>(fragColor.a);
-				*imagePtr = (r) | (g << 8) | (b << 16) | (a << 24);
+				if constexpr (depthT::zWriteEnable_v)
+				{
+					*applySetup.zImagePtr = applySetup.z;
+				}
+				TriangleRasterizer::ApplyColor<blendT,writeT>(out.color, applySetup.imagePtr, applySetup.colorPtr);
+
 			}
-			template< fragmentState_t state, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, state, fragmentShaderT>&& state == fragmentState_t::DepthChange)
-			static void ApplyFragment(const triangle_t& triangle, const attributeData_t& inter, float w, float z, const glm::vec<2, float>& pixel, std::uint32_t* imagePtr, float* zImagePtr, const fragmentShaderT& fragmentShader)
+			template< fragmentState_t state, ValidBlendData blendT, ValidDepthData depthT, ValidWriteData writeT,typename fragmentShaderT > requires(ValidFragmentFunction<fragment, state, fragmentShaderT>&& state == fragmentState_t::DepthChange)
+			static void ApplyFragment(const triangle_t& triangle, const ApplySetup& applySetup,const  BlockSetup& blockSetup,const fragmentShaderT& fragmentShader)
 			{
-				vertex_t fragment = triangle[0];
-				float currentW = 1.f / w;
-				inter.Apply(fragment, currentW);
-				fragment_output_t<state> out = fragmentShader(fragment, pixel, z);
-				if (out.discard || out.z >= *zImagePtr)
+				fragment_output_t<state> out = TriangleRasterizer::ExecuteFragmentShader<state, fragmentShaderT>(applySetup, blockSetup,fragmentShader);
+				if constexpr (depthT::zTestEnabled_v)
+				{
+					if (!depthT::PassDepthTest(out.z, *applySetup.zImagePtr))
+						return;
+				}
+
+				if (out.discard)
 					return;
-				*zImagePtr = out.z;
-				glm::vec4 fragColor = out.color * 255.f;
-				std::uint32_t r = static_cast<std::uint32_t>(fragColor.x);
-				std::uint32_t g = static_cast<std::uint32_t>(fragColor.y);
-				std::uint32_t b = static_cast<std::uint32_t>(fragColor.z);
-				std::uint32_t a = static_cast<std::uint32_t>(fragColor.a);
-				*imagePtr = (r) | (g << 8) | (b << 16) | (a << 24);
+				if constexpr (depthT::zWriteEnable_v)
+				{
+					*applySetup.zImagePtr = out.z;
+				}
+				TriangleRasterizer::ApplyColor<blendT,writeT>(out.color, applySetup.imagePtr, applySetup.colorPtr);
 				
 			}
+			template<ValidBlendData blendT, ValidWriteData writeT>
+			static void ApplyColor(const glm::vec<4,float>& srcColor, std::uint32_t* imagePtr, glm::vec<4, float>* colorPtr)
+			{
+				glm::vec<4, float> dstColor = *colorPtr;
+				glm::vec<4, float> realColor = blendT::Blend(srcColor, dstColor);
+				realColor = glm::clamp(realColor, 0.f,1.f);
+				if constexpr (writeT::mask & static_cast<std::uint8_t>(writeMaks::R))
+					dstColor.r = realColor.r;
+				if constexpr (writeT::mask & static_cast<std::uint8_t>(writeMaks::G))
+					dstColor.g = realColor.g;
+				if constexpr (writeT::mask & static_cast<std::uint8_t>(writeMaks::B))
+					dstColor.b = realColor.b;
+				if constexpr (writeT::mask & static_cast<std::uint8_t>(writeMaks::A))
+					dstColor.a = realColor.a;
 
-
+				*colorPtr = dstColor;
+				dstColor *= 255.f;
+				const std::uint32_t r =  static_cast<std::uint32_t>(dstColor.r);
+				const std::uint32_t g = static_cast<std::uint32_t>(dstColor.g);
+				const std::uint32_t b = static_cast<std::uint32_t>(dstColor.b);
+				const std::uint32_t a = static_cast<std::uint32_t>(dstColor.a);
+				*imagePtr = r | (g << 8) | (b << 16) | (a << 24);
+			}
 			static std::array<glm::vec<4, float>, 3> GetPosition(const triangle_t& triangle)
 			{
 				std::array<glm::vec<4, float>, 3> result;
@@ -765,10 +1025,7 @@ struct Atribut
 					{ pos[1].x, pos[1].y },
 					{ pos[2].x,pos[2].y });
 			}
-			static bool IsValidArea(float area)
-			{
-				return area > 0;
-			}
+			
 			static box2_t<int> GetBox(const std::array<glm::vec<4, float>, 3>& pos, const FDB::Rect<std::int32_t>& viewPort)
 			{
 				box2_t<int> box;
@@ -858,6 +1115,7 @@ struct Atribut
 			{
 				interData.data.InitOrigin(startInter, blockEdgeData, invArea);
 			}
+
 		};
 	}
 	
@@ -886,8 +1144,10 @@ struct Atribut
 		FDB::Sdl::Texture texture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, size);
 		std::vector<std::uint32_t> frameBuffer;
 		std::vector<float> zBuffer;
+		std::vector<glm::vec<4,float>> colorBuffer;
 		zBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
 		frameBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
+		colorBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
 
 		Transform::Vertex a,b,c,d;
 
@@ -920,6 +1180,8 @@ struct Atribut
 
 			std::memset(frameBuffer.data(), 0, frameBuffer.size() * sizeof(std::uint32_t));
 			std::fill(zBuffer.begin(), zBuffer.end(), 1.f);
+			std::fill(colorBuffer.begin(), colorBuffer.end(), glm::vec<4,float>(0,0,0,0));
+
 
 			std::vector<Transform::Vertex> vertexList;
 			std::vector<unsigned int> indices;
@@ -946,13 +1208,16 @@ struct Atribut
 			port.x = 0;
 			port.y =0;
 			port.width = size.x;
-			port.height = size.y ;
+			port.height = size.y;
 
 			FDB::Pipeline::Image<std::uint32_t> image;
 			image.buffer = frameBuffer.data();
 			image.bufferHeight = size.y;
 			image.bufferWidth = size.x;
-
+			FDB::Pipeline::Image<glm::vec<4,float>> color_image;
+			color_image.buffer = colorBuffer.data();
+			color_image.bufferHeight = size.y;
+			color_image.bufferWidth = size.x;
 			FDB::Pipeline::Image<float> z_image;
 			z_image.buffer = zBuffer.data();
 			z_image.bufferHeight = size.y;
@@ -977,17 +1242,23 @@ struct Atribut
 			using rasterizer_t = FDB::Pipeline::Rasterizer::TriangleRasterizer<Transform::Vertex>;
 			using fragmentState_t = FDB::Pipeline::Rasterizer::FragmentState;
 			using fragmentOutput = FDB::Pipeline::Rasterizer::fragment_output_t<fragmentState_t::Keep>;
-
+			using fragmentInput_t = FDB::Pipeline::Rasterizer::FragmentInput<Transform::Vertex>;
 			Transform::Mesh mesh;
 			mesh.vertices = vertexList;
 			mesh.indices = indices;
-			auto fragmentShader = [&](const Transform::Vertex& vertex, const glm::vec<2, std::int32_t>& pixel, float) { return  fragmentOutput::Color(vertex.color);};
+			auto fragmentShader = [&](const fragmentInput_t& input) { return  fragmentOutput::Color(input.vertex.color);};
 
 			auto processedTriangles = Pipeline::createSommetList(vertexList, indices, port);
+			rasterizer_t::ImagesData imageData;
+			imageData.colorImage = color_image;
+			imageData.zBuffer = z_image;
+			imageData.finalImage = image;
+			using cullType = FDB::Pipeline::Rasterizer::cullData_t<FDB::Pipeline::Rasterizer::CullFace::CCW, FDB::Pipeline::Rasterizer::CullMode::Back>;
 			if (!processedTriangles.empty()) {
-				rasterizer_t::Compute<fragmentState_t::Keep>({ processedTriangles[0],processedTriangles[1],processedTriangles[2] }, port, image, z_image, fragmentShader);
-			}
 
+				rasterizer_t::Compute<fragmentState_t::Keep, cullType>({ processedTriangles[0],processedTriangles[1],processedTriangles[2] }, port, imageData, fragmentShader);
+			}
+			
 			texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
 			renderer.RenderTexture(texture);
 			renderer.Present();

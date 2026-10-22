@@ -53,11 +53,11 @@ std::vector<Transform::Vertex> VertexProcessing::Clipping(std::vector<Transform:
              triangle.pos.y < -1.0f || triangle.pos.y > 1.0f ||
              triangle.pos.z < -1.0f || triangle.pos.z > 1.0f)
          {
-             std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " outside clip space.\n";
+            // std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " outside clip space.\n";
          }
          else
          {
-             std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " inside clip space.\n";
+            // std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " inside clip space.\n";
          }
 
     }
