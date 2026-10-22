@@ -7,28 +7,25 @@
 //#include "Core/Rect.h"
 #include <iostream>
 
-std::vector<Transform::Vertex> Pipeline::createSommetList(std::vector<Transform::Vertex>& triangles, std::vector<unsigned int> indices, FDB::Rect<std::int32_t>& port)
+void Pipeline::createSommetList(std::vector<Transform::Vertex>& triangles, FDB::Rect<std::int32_t>& port, std::function<void(Transform::Vertex, Transform::Vertex, Transform::Vertex)> callback)
 {
 
     glm::mat4 model(1.0f); // set model matrice
     glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // set the view
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f); // set the projection
-    auto processedTriangles = VertexProcessing::process(triangles, model, view, projection); // place all this value for the vertexProcessing
 
-	auto ndcTriangles = VertexProcessing::perspectiveDivide(processedTriangles);
-	auto clippedTriangles = VertexProcessing::Clipping(ndcTriangles);
-	auto screenTriangles = VertexProcessing::viewportTransform(clippedTriangles, port.width, port.height);
+    VertexProcessing::process(triangles, model, view, projection); // place all this value for the vertexProcessing
+	VertexProcessing::perspectiveDivide(triangles);
+	VertexProcessing::Clipping(triangles, callback, port);
     std::vector<Transform::Vertex> culledTriangles;
-    if (!Pipeline::backFaceCulling(screenTriangles[0].pos, screenTriangles[1].pos, screenTriangles[2].pos)) {
-        culledTriangles.push_back(screenTriangles[0]);
-        culledTriangles.push_back(screenTriangles[1]);
-        culledTriangles.push_back(screenTriangles[2]);
+    if (!Pipeline::backFaceCulling(triangles[0].pos, triangles[1].pos, triangles[2].pos)) {
+        culledTriangles.push_back(triangles[0]);
+        culledTriangles.push_back(triangles[1]);
+        culledTriangles.push_back(triangles[2]);
     }
-
-	return culledTriangles;
 }
 
-std::vector<Transform::Vertex> VertexProcessing::process(std::vector<Transform::Vertex>& triangles, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection)
+void VertexProcessing::process(std::vector<Transform::Vertex>& triangles, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection)
 {
     for (Transform::Vertex& triangle : triangles) {
         //ProcessedTriangle processedTriangle;
@@ -43,28 +40,29 @@ std::vector<Transform::Vertex> VertexProcessing::process(std::vector<Transform::
         triangle.color = triangle.color;
     }
 
-    return triangles;
 }
 
-std::vector<Transform::Vertex> VertexProcessing::Clipping(std::vector<Transform::Vertex>& processedTriangles)
+void VertexProcessing::Clipping(std::vector<Transform::Vertex>& processedTriangles, std::function<void(Transform::Vertex, Transform::Vertex, Transform::Vertex)> callback, FDB::Rect<std::int32_t>& port)
 {
     for (const auto& triangle : processedTriangles) {
          if (triangle.pos.x < -1.0f || triangle.pos.x > 1.0f ||
              triangle.pos.y < -1.0f || triangle.pos.y > 1.0f ||
              triangle.pos.z < -1.0f || triangle.pos.z > 1.0f)
          {
-             std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " outside clip space.\n";
+             
+             //std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " outside clip space.\n";
          }
          else
          {
-             std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " inside clip space.\n";
+             //std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " inside clip space.\n";
          }
 
     }
-    return processedTriangles;
+    VertexProcessing::viewportTransform(processedTriangles, port.width, port.height);
+	callback(processedTriangles[0], processedTriangles[1], processedTriangles[2]);
 }
 
-std::vector<Transform::Vertex> VertexProcessing::perspectiveDivide(std::vector<Transform::Vertex>& processedTriangles)
+void VertexProcessing::perspectiveDivide(std::vector<Transform::Vertex>& processedTriangles)
 {
 
     for (auto& triangle : processedTriangles) {
@@ -72,10 +70,9 @@ std::vector<Transform::Vertex> VertexProcessing::perspectiveDivide(std::vector<T
         triangle.pos.y /= triangle.pos.w;
         triangle.pos.z /= triangle.pos.w;
 	}
-    return processedTriangles;
 }
 
-std::vector<Transform::Vertex> VertexProcessing::viewportTransform(std::vector<Transform::Vertex>& ndcTriangles, float width, float height)
+void VertexProcessing::viewportTransform(std::vector<Transform::Vertex>& ndcTriangles, float width, float height)
 {
 
 	for (auto& triangle : ndcTriangles) {
@@ -88,12 +85,14 @@ std::vector<Transform::Vertex> VertexProcessing::viewportTransform(std::vector<T
     auto triangles = ndcTriangles[2];
 	ndcTriangles[2] = ndcTriangles[1];
 	ndcTriangles[1] = triangles;
-   
-	return ndcTriangles;
 }
 
 bool Pipeline::backFaceCulling(glm::vec4 a, glm::vec4 b, glm::vec4 c)
 {
+    bool isBackFace = false;
     float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-    return area > 0.0f;
+    if (area > 0.0f) {
+        isBackFace = true;
+    }
+    return isBackFace;
 }

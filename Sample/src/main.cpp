@@ -983,11 +983,11 @@ struct Atribut
 			mesh.indices = indices;
 			auto fragmentShader = [&](const Transform::Vertex& vertex, const glm::vec<2, std::int32_t>& pixel, float) { return  fragmentOutput::Color(vertex.color);};
 
-			auto processedTriangles = Pipeline::createSommetList(vertexList, indices, port);
-			if (!processedTriangles.empty()) {
-				rasterizer_t::Compute<fragmentState_t::Keep>({ processedTriangles[0],processedTriangles[1],processedTriangles[2] }, port, image, z_image, fragmentShader);
-			}
-
+			std::function<void(Transform::Vertex, Transform::Vertex, Transform::Vertex)> drawTriangle = [&](Transform::Vertex a, Transform::Vertex b, Transform::Vertex c)
+			{
+				rasterizer_t::Compute<fragmentState_t::Keep>({ a,b,c }, port, image, z_image, fragmentShader);
+			};
+			Pipeline::createSommetList(vertexList, port, drawTriangle);
 			texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
 			renderer.RenderTexture(texture);
 			renderer.Present();
