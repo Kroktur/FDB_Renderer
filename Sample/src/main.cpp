@@ -1,5 +1,6 @@
 
 //#include "Core/Rect.h"
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "GLM/vec4.hpp"
 #include "GLM/vec3.hpp"
 #include "SDL/Application.h"
@@ -15,13 +16,13 @@
 
 struct Rasterizer
 {
-	static void Compute(std::vector<Transform::Mesh>& triangles,const FDB::Rect<std::int32_t>& viewPort,std::uint32_t* buffer)
+	static void Compute(std::vector<Transform::Vertex>& triangles,const FDB::Rect<std::int32_t>& viewPort,std::uint32_t* buffer)
 	{
-		if (triangles.empty() || triangles[0].vertices.size() < 3)
+		if (triangles.empty() || triangles.size() < 3)
 			return;
-		auto a = triangles[0].vertices[0];
-		auto b = triangles[0].vertices[1];
-		auto c = triangles[0].vertices[2];
+		auto a = triangles[0];
+		auto b = triangles[1];
+		auto c = triangles[2];
 		// find bounding box
 		int minX = std::max(viewPort.x, static_cast<int>(std::min({ a.pos.x, b.pos.x, c.pos.x })));
 		int maxX = std::min(viewPort.x + viewPort.width - 1, static_cast<int>(std::max({ a.pos.x, b.pos.x, c.pos.x })));
@@ -50,6 +51,8 @@ struct Rasterizer
 			b.pos.x, b.pos.y,
 			c.pos.x,
 			c.pos.y);
+		if (area <= 0.0f)
+			return;
 
 
 		float invArea = 1.f / area;
@@ -194,9 +197,9 @@ int main(int argc, char* argv[])
 		std::vector<unsigned int> indices;
 		//TODO vertex gestion
 		{
-			a.pos = glm::vec4(-1.5f, -1.0f, -100.0f, 1.0f);
-			b.pos = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-			c.pos = glm::vec4(1.5f, -1.0f, 0.0f, 1.0f);
+			a.pos = glm::vec4(-1.0f, -0.8f, -1.0f, 1.0f);
+			b.pos = glm::vec4(0.0f, 0.8f, -1.0f, 1.0f);
+			c.pos = glm::vec4(1.0f, -0.8f, -1.0f, 1.0f);
 			a.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
 			b.color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
 			c.color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
@@ -220,14 +223,11 @@ int main(int argc, char* argv[])
 		mesh.vertices = vertexList;
 		mesh.indices = indices;
 
-		std::vector<Transform::Mesh> meshes;
-		meshes.push_back(mesh);
-		auto processedTriangles = Pipeline::createSommetList(meshes, indices, port);
+		auto processedTriangles = Pipeline::createSommetList(vertexList, indices, port);
 		if (!processedTriangles.empty()) {
 			Rasterizer::Compute(processedTriangles, port, frameBuffer.data());
 		}
 		
-
 		texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
 		renderer.RenderTexture(texture);
 		renderer.Present();
