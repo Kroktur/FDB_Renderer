@@ -923,21 +923,49 @@ struct Atribut
 
 			std::vector<Transform::Vertex> vertexList;
 			std::vector<unsigned int> indices;
-			//TODO vertex gestion
+
+			Transform::Vertex a, b, c, d, e, f, g, h, i, j, k, l, m, n, o;
+
+			// Triangle 1 : entièrement visible — Cyan
+			a.pos = glm::vec4(-0.5f, -0.5f, 0.0f, 1.0f);
+			b.pos = glm::vec4(0.0f, 0.5f, 0.0f, 1.0f);
+			c.pos = glm::vec4(0.5f, -0.5f, 0.0f, 1.0f);
+
+			// Triangle 2 : un sommet dépasse à droite — Violet
+			d.pos = glm::vec4(0.0f, -0.5f, 0.0f, 1.0f);
+			e.pos = glm::vec4(4.0f, 0.0f, 0.0f, 1.0f);
+			f.pos = glm::vec4(0.0f, 0.5f, 0.0f, 1.0f);
+
+			// Triangle 3 : deux sommets dépassent à gauche — Orange
+			g.pos = glm::vec4(-4.0f, -0.5f, 0.0f, 1.0f);
+			h.pos = glm::vec4(-4.0f, 0.5f, 0.0f, 1.0f);
+			i.pos = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+			// Triangle 4 : un sommet dépasse en haut — Turquoise
+			j.pos = glm::vec4(-0.5f, 0.0f, 0.0f, 1.0f);
+			k.pos = glm::vec4(0.0f, 4.0f, 0.0f, 1.0f);
+			l.pos = glm::vec4(0.5f, 0.0f, 0.0f, 1.0f);
+
+			// Triangle 5 : derrière le plan éloigné — Rose
+			m.pos = glm::vec4(-0.5f, -0.5f, -110.0f, 1.0f);
+			n.pos = glm::vec4(0.0f, 0.5f, -110.0f, 1.0f);
+			o.pos = glm::vec4(0.5f, -0.5f, -110.0f, 1.0f);
+
+			// Couleurs RGBA
+			a.color = b.color = c.color = glm::vec4(0.10f, 0.85f, 0.95f, 1.0f); // Cyan
+			d.color = e.color = f.color = glm::vec4(0.60f, 0.25f, 0.95f, 1.0f); // Violet
+			g.color = h.color = i.color = glm::vec4(1.00f, 0.45f, 0.15f, 1.0f); // Orange
+			j.color = k.color = l.color = glm::vec4(0.10f, 0.90f, 0.65f, 1.0f); // Turquoise
+			m.color = n.color = o.color = glm::vec4(1.00f, 0.25f, 0.55f, 1.0f); // Rose
+
+			// Ajout des sommets
+			vertexList = { a, b, c, d, e, f, g, h, i, j, k, l, m, n, o };
+
+			// Indices
+			for (unsigned int index = 0; index < vertexList.size(); ++index)
 			{
-				a.pos = glm::vec4(-1.0f, -0.8f, -1.0f, 1.0f);
-				b.pos = glm::vec4(0.0f, 0.8f, -1.0f, 1.0f);
-				c.pos = glm::vec4(1.0f, -0.8f, -1.0f, 1.0f);
-				a.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-				b.color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-				c.color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+				indices.push_back(index);
 			}
-			vertexList.push_back(a);
-			vertexList.push_back(b);
-			vertexList.push_back(c);
-			indices.push_back(0);
-			indices.push_back(1);
-			indices.push_back(2);
 
 
 			FDB::Rect<std::int32_t> port;

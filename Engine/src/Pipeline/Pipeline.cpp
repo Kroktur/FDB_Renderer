@@ -15,7 +15,6 @@ void Pipeline::createSommetList(std::vector<Transform::Vertex>& triangles, FDB::
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f); // set the projection
 
     VertexProcessing::process(triangles, model, view, projection); // place all this value for the vertexProcessing
-	VertexProcessing::perspectiveDivide(triangles);
 	VertexProcessing::Clipping(triangles, callback, port);
     std::vector<Transform::Vertex> culledTriangles;
     if (!Pipeline::backFaceCulling(triangles[0].pos, triangles[1].pos, triangles[2].pos)) {
@@ -44,28 +43,89 @@ void VertexProcessing::process(std::vector<Transform::Vertex>& triangles, const 
 
 void VertexProcessing::Clipping(std::vector<Transform::Vertex>& processedTriangles, std::function<void(Transform::Vertex, Transform::Vertex, Transform::Vertex)> callback, FDB::Rect<std::int32_t>& port)
 {
-    for (const auto& triangle : processedTriangles) {
-         if (triangle.pos.x < -1.0f || triangle.pos.x > 1.0f ||
-             triangle.pos.y < -1.0f || triangle.pos.y > 1.0f ||
-             triangle.pos.z < -1.0f || triangle.pos.z > 1.0f)
-         {
-             
-             //std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " outside clip space.\n";
-         }
-         else
-         {
-             //std::cout << "Vertex :" << triangle.pos.x << ", " << triangle.pos.y << ", " << triangle.pos.z << " inside clip space.\n";
-         }
+    auto planeDistance = [](const Transform::Vertex& v, int plane) -> float
+        {
+            switch (plane)
+            {
+            case 0: return v.pos.x + v.pos.w;
+            case 1: return v.pos.w - v.pos.x;
+            case 2: return v.pos.y + v.pos.w;
+            case 3: return v.pos.w - v.pos.y;
+            case 4: return v.pos.z;
+            case 5: return v.pos.w - v.pos.z;
+            default: return -1.0f;
+            }
+        };
 
+    auto intersect = [&](const Transform::Vertex& A, const Transform::Vertex& B, int plane) -> Transform::Vertex {
+            float dA = planeDistance(A, plane);
+            float dB = planeDistance(B, plane);
+
+            float t = dA / (dA - dB);
+
+            Transform::Vertex I;
+            I.pos = A.pos + t * (B.pos - A.pos);
+            I.color = A.color + t * (B.color - A.color);
+
+            return I;
+        };
+    for (std::size_t i = 0; i + 2 < processedTriangles.size(); i += 3)
+    {
+        std::vector<Transform::Vertex> polygon = { processedTriangles[i], processedTriangles[i + 1], processedTriangles[i + 2]};
+        for (int plane = 0; plane < 6; ++plane)
+        {
+            if (polygon.empty())
+                break;
+            std::vector<Transform::Vertex> clippedPolygon;
+            Transform::Vertex previous = polygon.back();
+            float previousDistance = planeDistance(previous, plane);
+            bool previousInside = previousDistance >= 0.0f;
+            for (const Transform::Vertex& current : polygon)
+            {
+                float currentDistance = planeDistance(current, plane);
+                bool currentInside = currentDistance >= 0.0f;
+
+                if (previousInside && currentInside)
+                {
+                    clippedPolygon.push_back(current);
+                }
+                else if (previousInside && !currentInside)
+                {
+                    clippedPolygon.push_back(intersect(previous, current, plane));
+                }
+                else if (!previousInside && currentInside)
+                {
+                    clippedPolygon.push_back(intersect(previous, current, plane));
+                    clippedPolygon.push_back(current);
+                }
+                previous = current;
+                previousDistance = currentDistance;
+                previousInside = currentInside;
+            }
+            polygon = std::move(clippedPolygon);
+        }
+
+        for (std::size_t j = 1; j + 1 < polygon.size(); ++j)
+        {
+            std::vector<Transform::Vertex> triangle = {polygon[0], polygon[j], polygon[j + 1]};
+            perspectiveDivide(triangle);
+            viewportTransform(triangle, port.width, port.height);
+            callback(triangle[0], triangle[1], triangle[2]);
+        }
     }
-    VertexProcessing::viewportTransform(processedTriangles, port.width, port.height);
-	callback(processedTriangles[0], processedTriangles[1], processedTriangles[2]);
 }
 
 void VertexProcessing::perspectiveDivide(std::vector<Transform::Vertex>& processedTriangles)
 {
+	if (processedTriangles.empty()) {
+        return;
+    }
 
     for (auto& triangle : processedTriangles) {
+        if (triangle.pos.w == 0.0f) {
+            std::cerr << "Warning: w component is zero during perspective divide." << std::endl;
+            continue;
+		}
         triangle.pos.x /= triangle.pos.w;
         triangle.pos.y /= triangle.pos.w;
         triangle.pos.z /= triangle.pos.w;
