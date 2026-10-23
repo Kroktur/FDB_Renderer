@@ -12,16 +12,11 @@ void Pipeline::createSommetList(std::vector<Transform::Vertex>& triangles, FDB::
 
     glm::mat4 model(1.0f); // set model matrice
     glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // set the view
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f); // set the projection
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10000.0f); // set the projection
 
     VertexProcessing::process(triangles, model, view, projection); // place all this value for the vertexProcessing
 	VertexProcessing::Clipping(triangles, callback, port);
     std::vector<Transform::Vertex> culledTriangles;
-    if (!Pipeline::backFaceCulling(triangles[0].pos, triangles[1].pos, triangles[2].pos)) {
-        culledTriangles.push_back(triangles[0]);
-        culledTriangles.push_back(triangles[1]);
-        culledTriangles.push_back(triangles[2]);
-    }
 }
 
 void VertexProcessing::process(std::vector<Transform::Vertex>& triangles, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection)
@@ -57,7 +52,7 @@ void VertexProcessing::Clipping(std::vector<Transform::Vertex>& processedTriangl
             }
         };
 
-    auto intersect = [&](const Transform::Vertex& A, const Transform::Vertex& B, int plane) -> Transform::Vertex {
+    auto intersect = [planeDistance](const Transform::Vertex& A, const Transform::Vertex& B, int plane) -> Transform::Vertex {
             float dA = planeDistance(A, plane);
             float dB = planeDistance(B, plane);
 
@@ -72,6 +67,7 @@ void VertexProcessing::Clipping(std::vector<Transform::Vertex>& processedTriangl
     for (std::size_t i = 0; i + 2 < processedTriangles.size(); i += 3)
     {
         std::vector<Transform::Vertex> polygon = { processedTriangles[i], processedTriangles[i + 1], processedTriangles[i + 2]};
+
         for (int plane = 0; plane < 6; ++plane)
         {
             if (polygon.empty())
@@ -110,6 +106,9 @@ void VertexProcessing::Clipping(std::vector<Transform::Vertex>& processedTriangl
             std::vector<Transform::Vertex> triangle = {polygon[0], polygon[j], polygon[j + 1]};
             perspectiveDivide(triangle);
             viewportTransform(triangle, port.width, port.height);
+            if (!Pipeline::backFaceCulling(triangle[0].pos, triangle[1].pos, triangle[2].pos)) {
+                continue;
+            }
             callback(triangle[0], triangle[1], triangle[2]);
         }
     }
@@ -151,7 +150,7 @@ bool Pipeline::backFaceCulling(glm::vec4 a, glm::vec4 b, glm::vec4 c)
 {
     bool isBackFace = false;
     float area = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-    if (area > 0.0f) {
+    if (area <= 0.0f) {
         isBackFace = true;
     }
     return isBackFace;

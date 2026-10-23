@@ -520,12 +520,18 @@ struct Atribut
 			static void Compute(const triangle_t& triangle, const viewPort_t& viewPort, Image<std::uint32_t>& image,Image<float>& zImage,const fragmentShaderT& fragmentShader)
 			{
 				// position
-				const std::array<glm::vec<4, float>, 3> position = TriangleRasterizer::GetPosition(triangle);
+				 std::array<glm::vec<4, float>, 3> position = TriangleRasterizer::GetPosition(triangle);
 				// positon
 				// area
 				float area = TriangleRasterizer::GetArea(position);
 				if (!TriangleRasterizer::IsValidArea(area))
+				{
+					//area = -area;
+					//auto pos = position[1];
+					//position[1] = position[2];
+					//position[2] = pos;
 					return;
+				}
 
 				TriangleSetup setup;
 				setup.triangle = triangle;
@@ -889,10 +895,14 @@ struct Atribut
 		zBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
 		frameBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
 
-		Transform::Vertex a,b,c,d;
 
+		Transform::Vertex a,b,c,d;
 		Uint64 lastTime = SDL_GetTicks();
 		std::uint32_t frameCount = 0;
+
+		int iteration = 0;
+		int maxiteration = 0;
+		int lastiteration = 0;
 		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
 		{
 			FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
@@ -932,34 +942,40 @@ struct Atribut
 			c.pos = glm::vec4(0.5f, -0.5f, 0.0f, 1.0f);
 
 			// Triangle 2 : un sommet dépasse à droite — Violet
-			d.pos = glm::vec4(0.0f, -0.5f, 0.0f, 1.0f);
-			e.pos = glm::vec4(4.0f, 0.0f, 0.0f, 1.0f);
-			f.pos = glm::vec4(0.0f, 0.5f, 0.0f, 1.0f);
+			d.pos = glm::vec4(0.0f, -0.5f, -1.0f, 1.0f);
+			f.pos = glm::vec4(4.0f, 0.0f, -1.0f, 1.0f);
+			e.pos = glm::vec4(0.0f, 0.5f, -1.0f, 1.0f);
 
 			// Triangle 3 : deux sommets dépassent à gauche — Orange
-			g.pos = glm::vec4(-4.0f, -0.5f, 0.0f, 1.0f);
-			h.pos = glm::vec4(-4.0f, 0.5f, 0.0f, 1.0f);
-			i.pos = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+			g.pos = glm::vec4(-4.0f, -0.5f, -2.0f, 1.0f);
+			h.pos = glm::vec4(-4.0f, 0.5f, -2.0f, 1.0f);
+			i.pos = glm::vec4(0.0f, 0.0f, -2.0f, 1.0f);
 
 			// Triangle 4 : un sommet dépasse en haut — Turquoise
-			j.pos = glm::vec4(-0.5f, 0.0f, 0.0f, 1.0f);
-			k.pos = glm::vec4(0.0f, 4.0f, 0.0f, 1.0f);
-			l.pos = glm::vec4(0.5f, 0.0f, 0.0f, 1.0f);
+			j.pos = glm::vec4(-0.5f, 0.0f, -3.0f, 1.0f);
+			k.pos = glm::vec4(0.0f, 4.0f, -3.0f, 1.0f);
+			l.pos = glm::vec4(0.5f, 0.0f, -3.0f, 1.0f);
 
 			// Triangle 5 : derrière le plan éloigné — Rose
-			m.pos = glm::vec4(-0.5f, -0.5f, -110.0f, 1.0f);
-			n.pos = glm::vec4(0.0f, 0.5f, -110.0f, 1.0f);
-			o.pos = glm::vec4(0.5f, -0.5f, -110.0f, 1.0f);
+			m.pos = glm::vec4(-0.5f, -0.5f, -25.0f, 1.0f);
+			n.pos = glm::vec4(0.0f, 0.5f, -15.0f, 1.0f);
+			o.pos = glm::vec4(0.5f, -0.5f, 5.0f, 1.0f);
 
 			// Couleurs RGBA
 			a.color = b.color = c.color = glm::vec4(0.10f, 0.85f, 0.95f, 1.0f); // Cyan
 			d.color = e.color = f.color = glm::vec4(0.60f, 0.25f, 0.95f, 1.0f); // Violet
 			g.color = h.color = i.color = glm::vec4(1.00f, 0.45f, 0.15f, 1.0f); // Orange
+
 			j.color = k.color = l.color = glm::vec4(0.10f, 0.90f, 0.65f, 1.0f); // Turquoise
+			j.color = { 1.f,0.f,0.f,1.f };
+			k.color = { 0.f,1.f,0.f,1.f };
+			l.color = { 0.f,0.f,1.f,1.f };
+
+	
 			m.color = n.color = o.color = glm::vec4(1.00f, 0.25f, 0.55f, 1.0f); // Rose
 
 			// Ajout des sommets
-			vertexList = { a, b, c, d, e, f, g, h, i, j, k, l, m, n, o };
+			vertexList = { /*a, b, c, d, e, f, g, h, i, j, k, l,*/ m, n, o };
 
 			// Indices
 			for (unsigned int index = 0; index < vertexList.size(); ++index)
@@ -1010,12 +1026,22 @@ struct Atribut
 			mesh.vertices = vertexList;
 			mesh.indices = indices;
 			auto fragmentShader = [&](const Transform::Vertex& vertex, const glm::vec<2, std::int32_t>& pixel, float) { return  fragmentOutput::Color(vertex.color);};
-
+			int iteration = 0;
 			std::function<void(Transform::Vertex, Transform::Vertex, Transform::Vertex)> drawTriangle = [&](Transform::Vertex a, Transform::Vertex b, Transform::Vertex c)
 			{
-				rasterizer_t::Compute<fragmentState_t::Keep>({ a,b,c }, port, image, z_image, fragmentShader);
+					//if(iteration == lastiteration)
+						rasterizer_t::Compute<fragmentState_t::Keep>({ a,b,c }, port, image, z_image, fragmentShader);
+					++iteration;
 			};
+
 			Pipeline::createSommetList(vertexList, port, drawTriangle);
+
+
+			maxiteration = iteration;
+			if (maxiteration != 0)
+				lastiteration = (lastiteration + 1) % maxiteration;
+			std::cout << "iteration :" << lastiteration << "\n";
+			std::this_thread::sleep_for(std::chrono::milliseconds(500));
 			texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
 			renderer.RenderTexture(texture);
 			renderer.Present();
