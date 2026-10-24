@@ -17,6 +17,9 @@
 #include "Pipeline/Pipeline.h"
 #include "Pipeline/Transform.h"
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
 
 enum format
 {
@@ -78,7 +81,6 @@ struct Atribut
 		glm::vec<4, float> color;
 		static  constexpr  FDB::Pipeline::Attribute::Data PosAttribute()
 		{
-			
 			return FDB::Pipeline::Attribute::Data{ FDB::Pipeline::Attribute::format::Float4,offsetof(Vertex, pos) };
 		}
 		static constexpr  std::array<FDB::Pipeline::Attribute::Data, 2> AllAttributes()
@@ -695,7 +697,7 @@ struct Atribut
 			template<typename T>
 			using deltaData_t = DeltaData<T>;
 			using blockData_t = BlockData;
-			static  constexpr  glm::vec<2, int> blockDim = { 64,64 };
+			static  constexpr  glm::vec<2, int> blockDim = { 8,8 };
 			using fragmentState_t  = FragmentState;
 			struct TriangleSetup
 			{
@@ -1130,10 +1132,53 @@ struct Atribut
 
 	static constexpr std::int32_t renderHeight = 240;
 
+
+
+	static constexpr size_t sizeLong = sizeof(long);
     // TODO bouger dans un fichier a part 
 	// TODO zoption bias blend 
+
+
+	inline float AtomicCompareExchange(float* ptr,float exchange,float comparand) noexcept
+	{
+		auto* p = reinterpret_cast<volatile LONG*>(ptr);
+
+		return std::bit_cast<float>(static_cast<std::uint32_t>(InterlockedCompareExchange(
+			p,
+			static_cast<LONG>(std::bit_cast<std::uint32_t>(exchange)),
+			static_cast<LONG>(std::bit_cast<std::uint32_t>(comparand))
+		)));
+	}
+	
+	class SpinLock {
+		std::atomic_flag flag = ATOMIC_FLAG_INIT;
+
+	public:
+		void lock() noexcept {
+			while (flag.test_and_set(std::memory_order_acquire)) {
+				// Spin
+			}
+		}
+
+		void unlock() noexcept {
+			flag.clear(std::memory_order_release);
+		}
+	};
+
+	static constexpr  auto size = sizeof(std::atomic_flag);
+
 	int main(int argc, char* argv[])
 	{
+
+
+		static constexpr float value = 3.4028230e+38f;
+		static constexpr float result = 1.1754944e-38f;
+		float i = value;
+		AtomicCompareExchange(&i, result, value);
+	/*	if (i == result)
+			throw;*/
+
+
 		FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
 		FDB::Sdl::Window window("test", { windowWidth,windowHeight }, SDL_WINDOW_RESIZABLE);
 		FDB::Sdl::Renderer renderer(window);
@@ -1238,7 +1283,6 @@ struct Atribut
 			//bench([&] { Rasterizer::Compute<Vertex, VertexInterpolation>({ a, c, b }, port, frameBuffer.data(), zBuffer.data(), size.x); }, "Rasterizer V1");
 			//Rasterizer::Compute<Vertex,VertexInterpolation>({ a, c, b }, port, frameBuffer.data(),zBuffer.data(), size.x);
 
-
 			using rasterizer_t = FDB::Pipeline::Rasterizer::TriangleRasterizer<Transform::Vertex>;
 			using fragmentState_t = FDB::Pipeline::Rasterizer::FragmentState;
 			using fragmentOutput = FDB::Pipeline::Rasterizer::fragment_output_t<fragmentState_t::Keep>;
@@ -1264,6 +1308,12 @@ struct Atribut
 			renderer.Present();
 		}
 		FDB::Sdl::Application::Destroy();
+		
+		
+
+		
+
+		
 	}
 
 
