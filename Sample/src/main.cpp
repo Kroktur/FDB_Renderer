@@ -471,21 +471,11 @@ struct Atribut
 				}
 				else if constexpr (opT == BlendOp::Min)
 				{
-					glm::vec<4, float> result;
-					result.r = std::min(srcColor.r, dstColor.r);
-					result.g = std::min(srcColor.g, dstColor.g);
-					result.b = std::min(srcColor.b, dstColor.b);
-					result.a = std::min(srcColor.a, dstColor.a);
-					return result;
+					return glm::min(srcColor, dstColor);
 				}
 				else
 				{
-					glm::vec<4, float> result;
-					result.r = std::max(srcColor.r, dstColor.r);
-					result.g = std::max(srcColor.g, dstColor.g);
-					result.b = std::max(srcColor.b, dstColor.b);
-					result.a = std::max(srcColor.a, dstColor.a);
-					return result;
+					return glm::max(srcColor, dstColor);
 				}
 			}
 
@@ -744,6 +734,7 @@ struct Atribut
 				float area = TriangleRasterizer::GetArea(position);
 				if (!cullT::ValidArea(area,position))
 					return;
+				
 
 				TriangleSetup setup;
 				setup.triangle = triangle;
@@ -1194,10 +1185,14 @@ struct Atribut
 		frameBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
 		colorBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
 
-		Transform::Vertex a,b,c,d;
 
+		Transform::Vertex a,b,c,d;
 		Uint64 lastTime = SDL_GetTicks();
 		std::uint32_t frameCount = 0;
+
+		int iteration = 0;
+		int maxiteration = 0;
+		int lastiteration = 0;
 		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
 		{
 			FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
@@ -1230,21 +1225,56 @@ struct Atribut
 
 			std::vector<Transform::Vertex> vertexList;
 			std::vector<unsigned int> indices;
-			//TODO vertex gestion
+
+			Transform::Vertex a, b, c, d, e, f, g, h, i, j, k, l, m, n, o;
+
+			// Triangle 1 : entièrement visible — Cyan
+			a.pos = glm::vec4(-0.5f, -0.5f, 0.0f, 1.0f);
+			b.pos = glm::vec4(0.0f, 0.5f, 0.0f, 1.0f);
+			c.pos = glm::vec4(0.5f, -0.5f, 0.0f, 1.0f);
+
+			// Triangle 2 : un sommet dépasse à droite — Violet
+			d.pos = glm::vec4(-0.5f, -0.5f, 0.0f, 1.0f);
+			e.pos = glm::vec4(0.0f, 0.5f, 0.0f, 1.0f);
+			f.pos = glm::vec4(0.5f, -0.5f, 0.0f, 1.0f);
+
+			// Triangle 3 : deux sommets dépassent à gauche — Orange
+			g.pos = glm::vec4(-0.5f, -0.5f, 0.0f, 1.0f);
+			h.pos = glm::vec4(0.0f, 0.5f, 0.0f, 1.0f);
+			i.pos = glm::vec4(0.5f, -0.5f, 0.0f, 1.0f);
+
+			// Triangle 4 : un sommet dépasse en haut — Turquoise
+			j.pos = glm::vec4(-0.5f, 0.0f, -3.0f, 1.0f);
+			k.pos = glm::vec4(0.0f, 4.0f, -3.0f, 1.0f);
+			l.pos = glm::vec4(0.5f, 0.0f, -3.0f, 1.0f);
+
+			// Triangle 5 : derrière le plan éloigné — Rose
+			m.pos = glm::vec4(-0.5f, -0.5f, -25.0f, 1.0f);
+			n.pos = glm::vec4(0.0f, 0.5f, -15.0f, 1.0f);
+			o.pos = glm::vec4(0.5f, -0.5f, 5.0f, 1.0f);
+
+			// Couleurs RGBA
+			a.color = b.color = c.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+			d.color = e.color = f.color = glm::vec4(1.0f, 0.0f, 0.0f, 0.5f); 
+			g.color = h.color = i.color = glm::vec4(0.0f, 0.f, 1.0f, 0.5f); 
+
+
+			j.color = k.color = l.color = glm::vec4(0.10f, 0.90f, 0.65f, 1.0f); // Turquoise
+			j.color = { 1.f,0.f,0.f,1.f };
+			k.color = { 0.f,1.f,0.f,1.f };
+			l.color = { 0.f,0.f,1.f,1.f };
+
+	
+			m.color = n.color = o.color = glm::vec4(1.00f, 0.25f, 0.55f, 1.0f); // Rose
+
+			// Ajout des sommets
+			vertexList = { a, b, c, d, e, f, g, h, i/*, j, k, l, m, n, o */};
+
+			// Indices
+			for (unsigned int index = 0; index < vertexList.size(); ++index)
 			{
-				a.pos = glm::vec4(-1.0f, -0.8f, -1.0f, 1.0f);
-				b.pos = glm::vec4(0.0f, 0.8f, -1.0f, 1.0f);
-				c.pos = glm::vec4(1.0f, -0.8f, -1.0f, 1.0f);
-				a.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-				b.color = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
-				c.color = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+				indices.push_back(index);
 			}
-			vertexList.push_back(a);
-			vertexList.push_back(b);
-			vertexList.push_back(c);
-			indices.push_back(0);
-			indices.push_back(1);
-			indices.push_back(2);
 
 
 			FDB::Rect<std::int32_t> port;
@@ -1290,19 +1320,28 @@ struct Atribut
 			Transform::Mesh mesh;
 			mesh.vertices = vertexList;
 			mesh.indices = indices;
-			auto fragmentShader = [&](const fragmentInput_t& input) { return  fragmentOutput::Color(input.vertex.color);};
+			auto fragmentShader = [&](const fragmentInput_t& input)
+			{
+				return  fragmentOutput::Color(input.vertex.color);
+			};
 
-			auto processedTriangles = Pipeline::createSommetList(vertexList, indices, port);
+		
 			rasterizer_t::ImagesData imageData;
 			imageData.colorImage = color_image;
 			imageData.zBuffer = z_image;
 			imageData.finalImage = image;
+			using blendEnum = FDB::Pipeline::Rasterizer::BlendFactor;
+			using blendOp = FDB::Pipeline::Rasterizer::BlendOp;
+			using blendT = FDB::Pipeline::Rasterizer::blendData_t < blendEnum::SrcAlpha, blendEnum::OneMinusSrcAlpha, blendOp::Add>;
+			using DepthEnum = FDB::Pipeline::Rasterizer::DepthOp;
+			using DepthT = FDB::Pipeline::Rasterizer::depthData_t<false, false, FDB::Pipeline::Rasterizer::DepthOp::Never>;
 			using cullType = FDB::Pipeline::Rasterizer::cullData_t<FDB::Pipeline::Rasterizer::CullFace::CCW, FDB::Pipeline::Rasterizer::CullMode::Back>;
-			if (!processedTriangles.empty()) {
+		auto rasterizer = 	[&](Transform::Vertex a, Transform::Vertex b, Transform::Vertex c) {				
+			rasterizer_t::Compute<fragmentState_t::Keep, cullType, blendT, DepthT>({a,b,c }, port, imageData, fragmentShader);
+			};
+			Pipeline::createSommetList(vertexList, port, rasterizer);
+			std::cout << colorBuffer[75 * renderWidth + 158].r << " " << colorBuffer[75 * renderWidth + 158].g << " " << colorBuffer[75 * renderWidth + 158].b << " " << colorBuffer[75 * renderWidth + 158].a << "\n";
 
-				rasterizer_t::Compute<fragmentState_t::Keep, cullType>({ processedTriangles[0],processedTriangles[1],processedTriangles[2] }, port, imageData, fragmentShader);
-			}
-			
 			texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
 			renderer.RenderTexture(texture);
 			renderer.Present();

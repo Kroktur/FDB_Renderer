@@ -37,11 +37,11 @@ public:
 	using Triangle = std::vector<Transform::Vertex>;
 	using ProcessedTriangle = std::vector<ProcessedVertex>;
 
-	static std::vector<Transform::Vertex> process(std::vector<Transform::Vertex>& triangles, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection);
-	static std::vector<Transform::Vertex> Clipping(std::vector<Transform::Vertex>& processedTriangles);
-	static std::vector<Transform::Vertex> perspectiveDivide(std::vector<Transform::Vertex>& processedTriangles);
-	static std::vector<Transform::Vertex> viewportTransform(std::vector<Transform::Vertex>& ndcTriangles, float width, float height);
-	static std::vector<Transform::Vertex> backFaceCulling(std::vector<Transform::Vertex>& triangles);
+	static void process(std::vector<Transform::Vertex>& triangles, const glm::mat4& model, const glm::mat4& view, const glm::mat4& projection);
+	static void perspectiveDivide(std::vector<Transform::Vertex>& processedTriangles);
+	static void backFaceCulling(std::vector<Transform::Vertex>& triangles);
+	static void Clipping(std::vector<Transform::Vertex>& processedTriangles, std::function<void(Transform::Vertex, Transform::Vertex, Transform::Vertex)> callback, FDB::Rect<std::int32_t>& port);
+	static void viewportTransform(std::vector<Transform::Vertex>& ndcTriangles, float width, float height);
 
 
 };
@@ -50,8 +50,8 @@ public:
 class Pipeline {
 public:
 
-	static std::vector<Transform::Vertex> createSommetList(std::vector<Transform::Vertex>& vertexList, std::vector<unsigned int> indices, FDB::Rect<std::int32_t>& port);
-    Pipeline(glm::vec4 position, glm::vec3 colorPixel) : pos(position), color(colorPixel),view(glm::mat4(1.0f)), near(0.1f), far(100.0f), fov(45.0f) {}
+	static void createSommetList(std::vector<Transform::Vertex>& triangles, FDB::Rect<std::int32_t>& port, std::function<void(Transform::Vertex, Transform::Vertex, Transform::Vertex)> callback);
+	Pipeline(glm::vec4 position, glm::vec3 colorPixel) : pos(position), color(colorPixel),view(glm::mat4(1.0f)), near(0.1f), far(100.0f), fov(45.0f) {}
 	static bool backFaceCulling(glm::vec4 a, glm::vec4 b, glm::vec4 c);
 
 	
