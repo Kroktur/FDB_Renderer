@@ -11,13 +11,13 @@ public:
     {
         glm::vec4 pos;
         glm::vec<4, float> color;
-        static  constexpr  FDB::Pipeline::Attribute::Data PosAttribute()
+        static  constexpr  FDB::Pipeline::Data PosAttribute()
         {
-            return FDB::Pipeline::Attribute::Data{ FDB::Pipeline::Attribute::format::Float4,offsetof(Vertex, pos) };
+            return FDB::Pipeline::Data{ FDB::Pipeline::format::Float4,offsetof(Vertex, pos) };
         }
-        static constexpr  std::array<FDB::Pipeline::Attribute::Data, 2> AllAttributes()
+        static constexpr  std::array<FDB::Pipeline::Data, 2> AllAttributes()
         {
-            return { FDB::Pipeline::Attribute::Data{FDB::Pipeline::Attribute::format::Float4,offsetof(Vertex, pos)},FDB::Pipeline::Attribute::Data{FDB::Pipeline::Attribute::format::Float4,offsetof(Vertex, color)} };
+            return { FDB::Pipeline::Data{FDB::Pipeline::format::Float4,offsetof(Vertex, pos)},FDB::Pipeline::Data{FDB::Pipeline::format::Float4,offsetof(Vertex, color)} };
         }
     };
 

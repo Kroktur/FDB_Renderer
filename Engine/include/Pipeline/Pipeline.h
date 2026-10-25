@@ -11,7 +11,6 @@
 class InputAssembler {
 private:
 	std::vector<Transform::Mesh> triangle;
-
 public:
 	explicit InputAssembler(const Transform::Mesh& mesh);
 
