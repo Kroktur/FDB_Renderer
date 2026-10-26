@@ -2,7 +2,7 @@
 	#include <iostream>
 #include <mutex>
 #include <string>
-
+#include "tiny_obj_loader.h"
 	#include "Core/Rect.h"
 	#include "GLM/vec4.hpp"
 	#include "GLM/vec3.hpp"
