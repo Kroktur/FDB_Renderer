@@ -48,12 +48,12 @@
 	
 
 
-	static constexpr std::int32_t windowWidth = 1920;
-	static constexpr std::int32_t windowHeight = 1080;
+	static constexpr std::int32_t windowWidth = 800;
+	static constexpr std::int32_t windowHeight = 600;
 
-	static constexpr std::int32_t renderWidth = 1920;
+	static constexpr std::int32_t renderWidth = 320;
 
-	static constexpr std::int32_t renderHeight = 1080;
+	static constexpr std::int32_t renderHeight = 240;
 
 
 
@@ -113,7 +113,7 @@
 			model, angle, glm::normalize(glm::vec3(1.f, 1.f, 0.f)));
 		glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // set the view
 		glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10000.0f); // set the projection
-
+		//glm::mat4 projection = glm::ortho(-4.0f, 4.0f, -3.0f, 3.0f,  0.1f, 10000.0f);
 		vertIn_t result = input;
 		glm::vec4 position(result.pos);
 		glm::vec4 worldPosition = model * position;

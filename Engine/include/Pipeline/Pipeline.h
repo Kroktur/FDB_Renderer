@@ -116,7 +116,7 @@ namespace FDB::Pipeline
 						continue;
 					if (result.needSwap)
 					{
-						std::swap(b, c);
+						std::swap(b.position, c.position);
 					}
 
 					rasterizer_t::template Compute< cullType, blendT, DepthT, writeT>({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, fragmentShader2);
