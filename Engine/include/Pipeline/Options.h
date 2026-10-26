@@ -5,6 +5,7 @@
 #include <GLM/vec4.hpp>
 
 #include "Atribute.h"
+#include "EdgeFunction.h"
 
 namespace FDB::Pipeline
 {

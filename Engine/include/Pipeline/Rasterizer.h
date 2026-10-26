@@ -1,4 +1,7 @@
-#pragma once
+#ifndef FDBPIPELINERASTERIZERF
+#define FDBPIPELINERASTERIZERF
+
+
 #include <array>
 #include <GLM/common.hpp>
 #include <GLM/vec2.hpp>
@@ -8,6 +11,7 @@
 
 #include "Atribute.h"
 #include "EdgeFunction.h"
+#include "Image.h"
 #include "Options.h"
 #include "Core/Box.h"
 #include "Core/Rect.h"
@@ -16,39 +20,33 @@
 
 
 
+
+
+
+
 namespace FDB::Pipeline
 {
-	template<typename T>
-	struct Image
+	using fixed_value_t = std::int64_t;
+	using fixed_edge = FDB::Pipeline::EdgeFunction<fixed_value_t>;
+	using fixed_point = glm::vec<2, fixed_value_t>;
+
+	static constexpr fixed_value_t subPixelScale = 256;
+	static constexpr fixed_value_t fixedDigits = 8;
+
+	static  fixed_value_t ToFixed(float v)
 	{
-		using value_type = T;
-		value_type* buffer = nullptr;
-		std::int32_t bufferWidth = 0;
-		std::int32_t bufferHeight = 0;
-	};
-}
+		return static_cast<fixed_value_t>(v * (1 << fixedDigits));
+	}
 
-using fixed_value_t = std::int64_t;
-using fixed_edge = FDB::Pipeline::EdgeFunction<fixed_value_t>;
-using fixed_point = glm::vec<2, fixed_value_t>;
+	static  fixed_point ToFixed(const glm::vec<2, float>& p)
+	{
+		return fixed_point{
+			ToFixed(p.x),
+			ToFixed(p.y)
+		};
+	}
 
-static constexpr fixed_value_t subPixelScale = 256;
-static constexpr fixed_value_t fixedDigits = 8;
-static fixed_value_t ToFixed(float v)
-{
-	return static_cast<fixed_value_t>(v * (1 << fixedDigits));
-}
 
-static fixed_point ToFixed(const glm::vec<2,float>& p)
-{
-	return fixed_point{
-		ToFixed(p.x),
-		ToFixed(p.y)
-	};
-}
-
-namespace FDB::Pipeline
-{
 
 	//struct EdgesData
 	//{
@@ -66,7 +64,6 @@ namespace FDB::Pipeline
 	{
 		glm::vec<2, std::int32_t> blockSize, blockOrigin;
 	};
-
 	template<FDB::Pipeline::ValidVertexT T>
 	struct AttributeData
 	{
@@ -240,13 +237,7 @@ namespace FDB::Pipeline
 		std::byte m_data[interpret_t::structSize];
 	};
 
-	struct ImagesData
-	{
-		Image<std::uint32_t> finalImage;
-		Image<glm::vec<4, float>> colorImage;
-		Image<float> zBuffer;
-	};
-
+	
 
 
 	template<FDB::Pipeline::ValidVertexT VertexT,std::size_t dim = 8>
@@ -672,3 +663,5 @@ namespace FDB::Pipeline
 
 	};
 }
+
+#endif
