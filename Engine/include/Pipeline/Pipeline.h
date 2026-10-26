@@ -27,6 +27,55 @@ namespace FDB::Pipeline
 	template<typename T>
 	static constexpr bool is_rasterizerOpt_v = is_rasterizerOpt<T>::value;
 
+
+	template<FDB::Pipeline::ValidVertexT T>
+	struct AttributePositionPipeline
+	{
+		using value_type = T;
+		using interpret_t = FDB::Pipeline::Interpret<value_type>;
+		using viewPort_t = Rect<std::int32_t>;
+
+		static void Perspective(T& vertexOut,float w)
+		{
+			using info_t = interpret_t::posInfo_t;
+			if constexpr (info_t::n == 0)
+				return;
+			else
+			{
+				std::byte* rawData = reinterpret_cast<std::byte*>(&vertexOut);
+				glm::vec<info_t::n, float> wV(w);
+				glm::vec<info_t::n, float> v;
+				std::memcpy(&v, rawData + info_t::offset, sizeof(v));
+				v /= wV;
+				std::memcpy(rawData + info_t::offset, &v, sizeof(v));
+			}
+		}
+		static void Screen(T& vertexOut,float x, float y,const viewPort_t& viewPort)
+		{
+			using info_t = interpret_t::posInfo_t;
+			if constexpr (info_t::n == 0)
+				return;
+			else
+			{
+				std::byte* rawData = reinterpret_cast<std::byte*>(&vertexOut);
+				glm::vec<info_t::n, float> v;
+				std::memcpy(&v, rawData + info_t::offset, sizeof(v));
+				v.x = static_cast<float>(viewPort.x) + (v.x + 1.0f) * 0.5f * static_cast<float>(viewPort.width);
+				v.y = static_cast<float>(viewPort.y) + (1.0f - v.y) * 0.5f * static_cast<float>(viewPort.height);
+				std::memcpy(rawData + info_t::offset, &v, sizeof(v));
+			}
+		}
+
+	private:
+
+		
+	};
+
+
+
+
+
+
 	template<typename T>
 	concept ValidRasterizerOpt = is_rasterizerOpt_v<T>;
 	template<ValidVertexT VertIn, ValidVertexT VertOut, typename VertexData, typename VInData, typename VOutData, VertOut(*vertexShader)(const VertIn&, const VertexData&, const VInData&), auto(*fragmentShader)(const fragment_input_t<VertOut>&, const VOutData&), ValidRasterizerOpt RasterizerOpt = default_rasterizerOpt_t>
@@ -118,7 +167,6 @@ namespace FDB::Pipeline
 					{
 						std::swap(b.position, c.position);
 					}
-
 					rasterizer_t::template Compute< cullType, blendT, DepthT, writeT>({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, fragmentShader2);
 				}
 			}
@@ -247,15 +295,16 @@ namespace FDB::Pipeline
 		static VertexOutData Perspective(const  VertexOutData& v)
 		{
 			VertexOutData copy = v;
+			AttributePositionPipeline<vertexOut>::Perspective(copy.vertex,v.position.w);
 			copy.position = v.position / glm::vec<4, float>(v.position.w);
 			return copy;
 		}
 		static VertexOutData Screen(const VertexOutData& v, const viewPort_t& viewPort)
 		{
 			VertexOutData copy = v;
+			AttributePositionPipeline<vertexOut>::Screen(copy.vertex,copy.position.x,copy.position.y,viewPort);
 			copy.position.x = static_cast<float>(viewPort.x) + (v.position.x + 1.0f) * 0.5f * static_cast<float>(viewPort.width);
 			copy.position.y = static_cast<float>(viewPort.y) + (1.0f - v.position.y) * 0.5f * static_cast<float>(viewPort.height);
-			copy.position.w = v.position.w;
 			return copy;
 		}
 

@@ -65,18 +65,18 @@ namespace FDB::Pipeline
 		glm::vec<2, std::int32_t> blockSize, blockOrigin;
 	};
 	template<FDB::Pipeline::ValidVertexT T>
-	struct AttributeData
+	struct AttributeRasterizerData
 	{
 		using value_type = T;
 		using interpret_t = FDB::Pipeline::Interpret<value_type>;
 		using edgesData_t = FDB::Pipeline::DeltaData<glm::vec<3,float>>;
 		using attributebase_t = AttributeBase<value_type>;
-		AttributeData() : m_data() {}
-		~AttributeData() = default;
-		AttributeData(const AttributeData&) = default;
-		AttributeData(AttributeData&&)noexcept = default;
-		AttributeData& operator=(const AttributeData&) = default;
-		AttributeData& operator=(AttributeData&&) noexcept = default;
+		AttributeRasterizerData() : m_data() {}
+		~AttributeRasterizerData() = default;
+		AttributeRasterizerData(const AttributeRasterizerData&) = default;
+		AttributeRasterizerData(AttributeRasterizerData&&)noexcept = default;
+		AttributeRasterizerData& operator=(const AttributeRasterizerData&) = default;
+		AttributeRasterizerData& operator=(AttributeRasterizerData&&) noexcept = default;
 
 		void InitW(const T& dataT, float invW)
 		{
@@ -87,7 +87,7 @@ namespace FDB::Pipeline
 			});
 		}
 		template<typename TParam>
-		void InitOrigin(const std::array<AttributeData, 3>& baseInterpol, const  DeltaData<glm::vec<3, TParam>>& edgeData, float invArea)
+		void InitOrigin(const std::array<AttributeRasterizerData, 3>& baseInterpol, const  DeltaData<glm::vec<3, TParam>>& edgeData, float invArea)
 		{
 			const std::byte* rawData0 = reinterpret_cast<const std::byte*>(&baseInterpol[0]);
 			const std::byte* rawData1 = reinterpret_cast<const std::byte*>(&baseInterpol[1]);
@@ -104,7 +104,7 @@ namespace FDB::Pipeline
 
 
 		template<typename TParam,bool isX>
-		void InitGradiant(const std::array<AttributeData, 3>& baseInterpol, const DeltaData<glm::vec<3, TParam>>& edgeData, float invArea)
+		void InitGradiant(const std::array<AttributeRasterizerData, 3>& baseInterpol, const DeltaData<glm::vec<3, TParam>>& edgeData, float invArea)
 		{
 			const std::byte* rawData0 = reinterpret_cast<const std::byte*>(&baseInterpol[0]);
 			const std::byte* rawData1 = reinterpret_cast<const std::byte*>(&baseInterpol[1]);
@@ -117,7 +117,7 @@ namespace FDB::Pipeline
 		}
 
 
-		AttributeData& operator+=(const AttributeData& other)
+		AttributeRasterizerData& operator+=(const AttributeRasterizerData& other)
 		{
 			const std::byte* rawData = reinterpret_cast<const std::byte*>(&other);
 
@@ -246,7 +246,7 @@ namespace FDB::Pipeline
 		using fragment = VertexT;
 		using triangle_t = std::array<fragment, 3>;
 		using viewPort_t = Rect<std::int32_t>;
-		using attributeData_t = AttributeData<fragment>;
+		using attributeData_t = AttributeRasterizerData<fragment>;
 		using interpret_t = Interpret<fragment>;
 		template<typename T>
 		using deltaData_t = DeltaData<T>;
@@ -307,8 +307,6 @@ namespace FDB::Pipeline
 			setup.fixedInvArea = 1.f / fixedArea;
 			setup.fixedBaseEdgeData.data = TriangleRasterizer::InitializeEdgeFunction(fixedPos, setup.box, subPixelScale);
 			setup.fixedBaseEdgeData.delta = TriangleRasterizer::InitializeEdgeDelta(fixedPos, subPixelScale);
-
-
 
 			//float
 			setup.fixedBaseInvW = TriangleRasterizer::GetInvW(position) * 1.f / static_cast<float>(subPixelScale);

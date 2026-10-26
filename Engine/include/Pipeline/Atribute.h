@@ -91,7 +91,6 @@ namespace FDB::Pipeline
 				(fn.template operator() < i > (), ...);
 			}(std::make_index_sequence< interpret_t::attributesSize >{});
 		}
-		
 	};
 
 
