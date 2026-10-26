@@ -197,7 +197,7 @@ namespace FDB::Pipeline
 
 			if constexpr (plane == Plane::Far)
 			{
-				return pos.w - pos.z >= 0;
+				return  pos.z >= 0;
 			}
 			else if constexpr (plane == Plane::Near)
 			{
