@@ -25,6 +25,10 @@ namespace FDB::Core
 		{
 			id_type id = invalidHandle;
 			id_type gen = invalidHandle;
+			[[nodiscard]] operator bool() const
+			{
+				return id != invalidHandle && gen != invalidHandle;
+			}
 		};
 
 		static BusHandle UnSubscribe(const BusHandle& handle)

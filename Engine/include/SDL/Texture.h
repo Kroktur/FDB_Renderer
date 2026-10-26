@@ -17,7 +17,7 @@ namespace FDB::Sdl
 		Texture(Texture&& other) noexcept;
 		Texture& operator=(const Texture&) = delete;
 		Texture& operator=(Texture&& other) noexcept;
-
+		Texture() = default;
 		~Texture();
 
 		void Update(const void* pixel, std::int32_t pitch) const;

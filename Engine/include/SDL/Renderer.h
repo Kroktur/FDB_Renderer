@@ -14,8 +14,8 @@ namespace FDB::Sdl
 	struct Texture;
 	struct Renderer
 	{
-		Renderer(Window& window, const char* name = nullptr, const Color::RGBA8& clearColor = Color::black8);
-
+		Renderer(Window& window, const char* name = nullptr, const Color::RGBA8888& clearColor = Color::black8);
+		Renderer() = default;
 		Renderer& operator=(Renderer&& other) noexcept;
 		Renderer& operator=(const Renderer&) = delete;
 		Renderer(Renderer&& other)noexcept;
@@ -32,7 +32,7 @@ namespace FDB::Sdl
 
 		void RenderTextureTo(Texture& texture, const Rect<float>& dstRect) const;
 
-		void Clear(const Color::RGBA8& color);
+		void Clear(const Color::RGBA8888& color);
 
 		void Present() const;
 
@@ -66,7 +66,7 @@ namespace FDB::Sdl
 
 	private:
 		SDL_Renderer* m_renderer;
-		Color::RGBA8 m_clearColor;
+		Color::RGBA8888 m_clearColor;
 	};
 }
 #endif

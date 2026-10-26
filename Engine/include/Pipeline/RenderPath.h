@@ -1,5 +1,6 @@
 #ifndef FDBPIPELINERENDERPATHF
 #define FDBPIPELINERENDERPATHF
+#include "FrameBuffer.h"
 #include "Options.h"
 #include "Rasterizer.h"
 #include "Core/Rect.h"
@@ -131,7 +132,7 @@ namespace FDB::Pipeline
 			m_vertexData = _data;
 		}
 
-		void Draw(vertex_buffer_t vBuffer, index_buffer_t iBuffer, std::size_t indexCount, viewPort_t& viewPort, const FDB::Pipeline::ImagesData& imageData)
+		void Draw(vertex_buffer_t vBuffer, index_buffer_t iBuffer, std::size_t indexCount,const viewPort_t& viewPort, const FrameBuffer& imageData)
 		{
 			using fragmentInput_t = FDB::Pipeline::FragmentInput<vertexOut>;
 
@@ -174,7 +175,7 @@ namespace FDB::Pipeline
 
 	private:
 
-		static bool CullPass(float area, pos_array_t& position)
+		[[nodiscard]] static bool CullPass(float area, pos_array_t& position)
 		{
 			area = rasterizerOpt::cull_t::GetArea(position);
 			return rasterizerOpt::cull_t::ValidArea(area, position);
@@ -191,7 +192,7 @@ namespace FDB::Pipeline
 
 		};
 		template<std::uint8_t N>
-		static bool VertexInPlane(const glm::vec<4, float>& pos)
+		[[nodiscard]] static bool VertexInPlane(const glm::vec<4, float>& pos)
 		{
 			constexpr Plane plane = static_cast<Plane>(N);
 
@@ -221,7 +222,7 @@ namespace FDB::Pipeline
 			}
 		}
 		template<std::uint8_t N>
-		static float  VertexDistPlane(const glm::vec<4, float>& pos)
+		[[nodiscard]] static float  VertexDistPlane(const glm::vec<4, float>& pos)
 		{
 			constexpr Plane plane = static_cast<Plane>(N);
 
@@ -280,7 +281,7 @@ namespace FDB::Pipeline
 			}
 		}
 
-		static std::vector<VertexOutData> Clip(const VertexOutData& A, const VertexOutData& B, const VertexOutData& C)
+		[[nodiscard]] static std::vector<VertexOutData> Clip(const VertexOutData& A, const VertexOutData& B, const VertexOutData& C)
 		{
 			std::vector<VertexOutData> poly = { A,B,C };
 			[&] <std::uint8_t...N>(std::integer_sequence<std::uint8_t, N...>)
@@ -292,14 +293,14 @@ namespace FDB::Pipeline
 			return poly;
 		}
 
-		static VertexOutData Perspective(const  VertexOutData& v)
+		[[nodiscard]] static VertexOutData Perspective(const  VertexOutData& v)
 		{
 			VertexOutData copy = v;
 			AttributePositionPipeline<vertexOut>::Perspective(copy.vertex,v.position.w);
 			copy.position = v.position / glm::vec<4, float>(v.position.w);
 			return copy;
 		}
-		static VertexOutData Screen(const VertexOutData& v, const viewPort_t& viewPort)
+		[[nodiscard]] static VertexOutData Screen(const VertexOutData& v, const viewPort_t& viewPort)
 		{
 			VertexOutData copy = v;
 			AttributePositionPipeline<vertexOut>::Screen(copy.vertex,copy.position.x,copy.position.y,viewPort);

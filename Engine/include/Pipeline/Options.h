@@ -327,7 +327,7 @@ namespace FDB::Pipeline
 	struct CullData
 	{
 		template<typename T,std::size_t N> requires(N >1 && N <= 4)
-		static float GetArea(const std::array<glm::vec<N, T>, 3>& pos)
+		static T GetArea(const std::array<glm::vec<N, T>, 3>& pos)
 		{
 			return EdgeFunction<T>::Compute(
 				{ pos[0].x, pos[0].y },
