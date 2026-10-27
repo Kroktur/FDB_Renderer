@@ -7,30 +7,6 @@
 #include <unordered_map>
 #include <functional>
 
-namespace
-{
-    // Clé unique = (position, normale, uv) d'après les indices tinyobj
-    struct VertexKey
-    {
-        int v, n, t;
-        bool operator==(const VertexKey& o) const
-        {
-            return v == o.v && n == o.n && t == o.t;
-        }
-    };
-
-    struct VertexKeyHash
-    {
-        std::size_t operator()(const VertexKey& k) const
-        {
-            std::size_t h = std::hash<int>()(k.v);
-            h ^= std::hash<int>()(k.n) + 0x9e3779b9 + (h << 6) + (h >> 2);
-            h ^= std::hash<int>()(k.t) + 0x9e3779b9 + (h << 6) + (h >> 2);
-            return h;
-        }
-    };
-}
-
 void LoadObjFile::LoadObj(std::vector<Transform::Vertex>& vertexList, std::vector<std::uint32_t>& indices, std::string ObjFile, std::string exePath)
 {
     vertexList.clear();
@@ -63,7 +39,13 @@ void LoadObjFile::LoadObj(std::vector<Transform::Vertex>& vertexList, std::vecto
             if (it == uniqueVertices.end())
             {
                 Transform::Vertex vertex{};
-                vertex.color = glm::vec4(1.0f);
+
+                if (attrib.colors.empty()) {
+                    vertex.color = glm::vec4(1.0f);
+                }
+                else {
+                    vertex.color = glm::vec4(attrib.colors[3 * idx.vertex_index + 0], attrib.colors[3 * idx.vertex_index + 1], attrib.colors[3 * idx.vertex_index + 2], 1.0f);
+                }
 
                 vertex.pos = glm::vec4( attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f);
 
