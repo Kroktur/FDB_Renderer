@@ -25,12 +25,10 @@ std::unique_ptr<Transform::Mesh> LoadObjFile::LoadObj(std::string ObjFile)
     const auto& attrib = reader.GetAttrib();
     const auto& shapes = reader.GetShapes();
 
-    std::unordered_map<VertexKey, std::uint32_t, VertexKeyHash> uniqueVertices;
-    // creer mesh
     for (const auto& shape : shapes)
     {
+        std::unordered_map<VertexKey, std::uint32_t, VertexKeyHash> uniqueVertices;
         Transform::SubMesh SubMesh;
-        //push submesh
         for (const auto& idx : shape.mesh.indices)
         {
             VertexKey key{ idx.vertex_index, idx.normal_index, idx.texcoord_index };
