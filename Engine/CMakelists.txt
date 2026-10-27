@@ -78,6 +78,8 @@ set(GLM_HEADER ${GLM}/include)
 set(TINYOBJ ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/tinyobj)
 set(TINYOBJ_HEADER ${TINYOBJ}/include)
 
+
+
 target_include_directories(${PROJECT_NAME}
     PUBLIC 
     ${HEADER_DIR}

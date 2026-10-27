@@ -4,7 +4,7 @@
 #include "SDL/Texture.h"
 namespace FDB::Sdl
 {
-	Renderer::Renderer(Window& window, const char* name, const Color::RGBA8& clearColor): m_renderer(nullptr), m_clearColor(clearColor)
+	Renderer::Renderer(Window& window, const char* name, const Color::RGBA8888& clearColor): m_renderer(nullptr), m_clearColor(clearColor)
 	{
 		m_renderer = SDL_CreateRenderer(window.GetSdlWindow(), name);
 		if (!m_renderer)
@@ -67,7 +67,7 @@ namespace FDB::Sdl
 		SDL_RenderTexture(m_renderer, texture.GetSdlTexture(), nullptr, &dstRectSDL);
 	}
 
-	void Renderer::Clear(const Color::RGBA8& color)
+	void Renderer::Clear(const Color::RGBA8888& color)
 	{
 		if (m_clearColor != color)
 		{

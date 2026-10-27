@@ -33,12 +33,12 @@ namespace FDB::Pipeline
 	static constexpr fixed_value_t subPixelScale = 256;
 	static constexpr fixed_value_t fixedDigits = 8;
 
-	static  fixed_value_t ToFixed(float v)
+	[[nodiscard]] static  fixed_value_t ToFixed(float v)
 	{
 		return static_cast<fixed_value_t>(v * (1 << fixedDigits));
 	}
 
-	static  fixed_point ToFixed(const glm::vec<2, float>& p)
+	[[nodiscard]] static  fixed_point ToFixed(const glm::vec<2, float>& p)
 	{
 		return fixed_point{
 			ToFixed(p.x),
@@ -258,38 +258,38 @@ namespace FDB::Pipeline
 
 		struct LoopSetup
 		{
-			triangle_t triangle;
-			float fixedInvArea;
-			box2_t<std::int32_t> box;
-			deltaData_t<glm::vec<3, fixed_value_t>> fixedBaseEdgeData;
-			glm::vec<3, float> fixedBaseInvW;
-			glm::vec<3, float> fixedBaseZ;
-			std::array<attributeData_t, 3> fixedInter;
-			std::array<bool, 3> topLeftRule;
+			triangle_t triangle ={};
+			float fixedInvArea = 0;
+			box2_t<std::int32_t> box = {};
+			deltaData_t<glm::vec<3, fixed_value_t>> fixedBaseEdgeData = {};
+			glm::vec<3, float> fixedBaseInvW = {};
+			glm::vec<3, float> fixedBaseZ = {};
+			std::array<attributeData_t, 3> fixedInter = {};
+			std::array<bool, 3> topLeftRule = {};
 		};
 
 
 		struct BlockSetup
 		{
-			blockData_t block;
-			deltaData_t<float> fixedWData;
-			deltaData_t<float> fixedZData;
-			deltaData_t<attributeData_t> fixedInterData;
-			std::array <glm::vec<3, fixed_value_t>, 2> fixedEdgeIncrement;
+			blockData_t block = {};
+			deltaData_t<float> fixedWData = {};
+			deltaData_t<float> fixedZData = {};
+			deltaData_t<attributeData_t> fixedInterData = {};
+			std::array <glm::vec<3, fixed_value_t>, 2> fixedEdgeIncrement = {};
 		};
 		struct FragmentSetup
 		{
-			attributeData_t fixedInter;
-			glm::vec<2, std::int32_t> pixel;
-			float fixedW;
-			float fixedZ;
-			std::uint32_t* imagePtr;
-			float* zImagePtr;
-			glm::vec<4, float>* colorPtr;
+			attributeData_t fixedInter = {};
+			glm::vec<2, std::int32_t> pixel = {};
+			float fixedW = 0;
+			float fixedZ = 0;
+			std::uint32_t* imagePtr = nullptr;
+			float* zImagePtr = nullptr;
+			glm::vec<4, float>* colorPtr = nullptr;
 		};
 		
 		template< ValidCullData cullT = default_cullData_t, ValidBlendData blendT = default_blendData_t, ValidDepthData depthT = default_depthData_t, ValidWriteMaskData writeT = rgba_writeMaskData_t, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, fragmentShaderT>)
-			static void Compute(const triangle_t& triangle,const std::array<glm::vec<4, float>, 3>& position, const viewPort_t& viewPort, const ImagesData& image, const fragmentShaderT& fragmentShader)
+			static void Compute(const triangle_t& triangle,const std::array<glm::vec<4, float>, 3>& position, const viewPort_t& viewPort, const FrameBuffer& image, const fragmentShaderT& fragmentShader)
 		{
 			float area = cullT::GetArea(position);
 			if (area <= 0)
@@ -303,7 +303,7 @@ namespace FDB::Pipeline
 				ToFixed({position[1].x,position[1].y}),
 				ToFixed({position[2].x,position[2].y})};
 
-			float fixedArea = cullT::GetArea(fixedPos);
+			float fixedArea = static_cast<float>(cullT::GetArea(fixedPos));
 			setup.fixedInvArea = 1.f / fixedArea;
 			setup.fixedBaseEdgeData.data = TriangleRasterizer::InitializeEdgeFunction(fixedPos, setup.box, subPixelScale);
 			setup.fixedBaseEdgeData.delta = TriangleRasterizer::InitializeEdgeDelta(fixedPos, subPixelScale);
@@ -331,7 +331,7 @@ namespace FDB::Pipeline
 		}
 	private:
 		template<ValidBlendData blendT, ValidDepthData depthT, ValidWriteMaskData writeT, typename fragmentShaderT>
-			static void Loop(const LoopSetup& setup, const ImagesData& image, const fragmentShaderT& fragmentShader)
+			static void Loop(const LoopSetup& setup, const FrameBuffer& image, const fragmentShaderT& fragmentShader)
 		{
 
 			BlockSetup blockSetup;
@@ -345,18 +345,15 @@ namespace FDB::Pipeline
 				glm::vec<3, fixed_value_t>(setup.fixedBaseEdgeData.delta[0][0], setup.fixedBaseEdgeData.delta[0][1], setup.fixedBaseEdgeData.delta[0][2]),
 				glm::vec<3, fixed_value_t>(setup.fixedBaseEdgeData.delta[1][0], setup.fixedBaseEdgeData.delta[1][1], setup.fixedBaseEdgeData.delta[1][2]) };
 
-
 			for (std::int32_t blockY = setup.box.min.y; blockY <= setup.box.max.y; blockY += blockDim.y)
 			{
 				blockSetup.block.blockSize.y = std::min(blockDim.y, setup.box.max.y - blockY + 1);
 				for (std::int32_t blockX = setup.box.min.x; blockX <= setup.box.max.x; blockX += blockDim.x)
 				{
-
 					blockSetup.block.blockSize.x = std::min(blockDim.x, setup.box.max.x - blockX + 1);
-
 					blockSetup.block.blockOrigin = { blockX, blockY };
-					deltaData_t<glm::vec<3, fixed_value_t>> fixedBlockEdgeData = TriangleRasterizer::InitializeStepEdgeData(blockSetup.block.blockOrigin, setup.box, blockSetup.block.blockSize, setup.fixedBaseEdgeData);
 
+					deltaData_t<glm::vec<3, fixed_value_t>> fixedBlockEdgeData = TriangleRasterizer::InitializeStepEdgeData(blockSetup.block.blockOrigin, setup.box, blockSetup.block.blockSize, setup.fixedBaseEdgeData);
 					if (TriangleRasterizer::IsBlock<false>(fixedBlockEdgeData))
 						continue;
 
@@ -378,10 +375,11 @@ namespace FDB::Pipeline
 			}
 		}
 		template< ValidBlendData blendT, ValidDepthData depthT, ValidWriteMaskData writeT, typename fragmentShaderT> 
-			static void PixelLoop(const triangle_t& triangle, BlockSetup& setup, const ImagesData& image, const fragmentShaderT& fragmentShader)
+			static void PixelLoop(const triangle_t& triangle,const BlockSetup& setup, const FrameBuffer& image, const fragmentShaderT& fragmentShader)
 		{
 				FragmentSetup applySetup;
 				BlockSetup currentSetup = setup;
+
 				for (std::int32_t y = 0; y < currentSetup.block.blockSize.y; ++y)
 				{
 				
@@ -391,9 +389,9 @@ namespace FDB::Pipeline
 					applySetup.fixedInter = currentSetup.fixedInterData.data;
 
 					applySetup.pixel = { currentSetup.block.blockOrigin.x,currentSetup.block.blockOrigin.y + y };
-					applySetup.imagePtr = image.finalImage.buffer + (applySetup.pixel.y * image.finalImage.bufferWidth + applySetup.pixel.x);
-					applySetup.zImagePtr = image.zBuffer.buffer + (applySetup.pixel.y * image.zBuffer.bufferWidth + applySetup.pixel.x);
-					applySetup.colorPtr = image.colorImage.buffer + (applySetup.pixel.y * image.colorImage.bufferWidth + applySetup.pixel.x);
+					applySetup.imagePtr = image.colorBuffer.data + (applySetup.pixel.y * image.colorBuffer.size.x + applySetup.pixel.x);
+					applySetup.zImagePtr = image.zBuffer.data + (applySetup.pixel.y * image.zBuffer.size.x + applySetup.pixel.x);
+					applySetup.colorPtr = image.colorFBuffer.data + (applySetup.pixel.y * image.colorFBuffer.size.x + applySetup.pixel.x);
 
 
 					for (std::int32_t x = 0; x < currentSetup.block.blockSize.x; ++x)
@@ -409,17 +407,14 @@ namespace FDB::Pipeline
 						applySetup.fixedInter += currentSetup.fixedInterData.delta[0];
 
 					}
-
-				
-
-					currentSetup.fixedZData.data += currentSetup.fixedWData.delta[1];
+					currentSetup.fixedWData.data += currentSetup.fixedWData.delta[1];
 					currentSetup.fixedZData.data += currentSetup.fixedZData.delta[1];
 					currentSetup.fixedInterData.data += currentSetup.fixedInterData.delta[1];
 				}
 		}
 
 		template< ValidBlendData blendT, ValidDepthData depthT, ValidWriteMaskData writeT, typename fragmentShaderT > 
-			static void PixelLoop(const triangle_t& triangle, const std::array<bool, 3>& topLeftRule, const deltaData_t<glm::vec<3, fixed_value_t>>& edgeData, BlockSetup& setup, const ImagesData& image, const fragmentShaderT& fragmentShader)
+			static void PixelLoop(const triangle_t& triangle, const std::array<bool, 3>& topLeftRule, const deltaData_t<glm::vec<3, fixed_value_t>>& edgeData, BlockSetup& setup, const FrameBuffer& image, const fragmentShaderT& fragmentShader)
 		{
 			FragmentSetup applySetup;
 			deltaData_t<glm::vec<3, fixed_value_t>> currentEdgeData = edgeData;
@@ -434,9 +429,9 @@ namespace FDB::Pipeline
 				applySetup.fixedInter = currentSetup.fixedInterData.data;
 
 				applySetup.pixel = { currentSetup.block.blockOrigin.x,currentSetup.block.blockOrigin.y + y };
-				applySetup.imagePtr = image.finalImage.buffer + (applySetup.pixel.y * image.finalImage.bufferWidth + applySetup.pixel.x);
-				applySetup.zImagePtr = image.zBuffer.buffer + (applySetup.pixel.y * image.zBuffer.bufferWidth + applySetup.pixel.x);
-				applySetup.colorPtr = image.colorImage.buffer + (applySetup.pixel.y * image.colorImage.bufferWidth + applySetup.pixel.x);
+				applySetup.imagePtr = image.colorBuffer.data +(applySetup.pixel.y * image.colorBuffer.size.x + applySetup.pixel.x);
+				applySetup.zImagePtr = image.zBuffer.data + (applySetup.pixel.y * image.zBuffer.size.x + applySetup.pixel.x);
+				applySetup.colorPtr = image.colorFBuffer.data + (applySetup.pixel.y * image.colorFBuffer.size.x + applySetup.pixel.x);
 
 
 				for (std::int32_t x = 0; x < currentSetup.block.blockSize.x; ++x)
@@ -514,7 +509,7 @@ namespace FDB::Pipeline
 			*imagePtr = r | (g << 8) | (b << 16) | (a << 24);
 		}
 		template< typename fragmentShaderT>
-		static  fragment_output_t<fragOutput_v<fragment, fragmentShaderT>> ExecuteFragmentShader(const FragmentSetup& applySetup, const BlockSetup& blockSetup, const fragmentShaderT& fragmentShader)
+		[[nodiscard]] static  fragment_output_t<fragOutput_v<fragment, fragmentShaderT>> ExecuteFragmentShader(const FragmentSetup& applySetup, const BlockSetup& blockSetup, const fragmentShaderT& fragmentShader)
 		{
 			fragment_input_t<fragment> fixedFragInput;
 			float fixedW = 1.f / applySetup.fixedW;
@@ -539,19 +534,19 @@ namespace FDB::Pipeline
 
 		// struct Rasterisation Rule
 		template<typename T>
-		static bool IsTopLeft(const glm::vec<2, T>& A, const glm::vec<2, T>& B)
+		[[nodiscard]] static bool IsTopLeft(const glm::vec<2, T>& A, const glm::vec<2, T>& B)
 		{
-			return ((B.y - A.y) > 0.0f || ((B.y - A.y) == 0.f) && ((B.x - A.x) < 0.f));
+			return ((B.y - A.y) < 0.0f || ((B.y - A.y) == 0.f) && ((B.x - A.x) > 0.f));
 		}
 		template<typename T>
-		static bool IsInside(const glm::vec<3, T>& edgesFn, const std::array<bool, 3>& topLeftRule)
+		[[nodiscard]] static bool IsInside(const glm::vec<3, T>& edgesFn, const std::array<bool, 3>& topLeftRule)
 		{
 			return ((topLeftRule[0] == true ? edgesFn[0] >= 0 : edgesFn[0] > 0) && (topLeftRule[1] == true ? edgesFn[1] >= 0 : edgesFn[1] > 0) && (topLeftRule[2] == true ? edgesFn[2] >= 0 : edgesFn[2] > 0));
 		}
 		// struct Rasterisation Rule
 
 
-		static box2_t<int> GetBox(const std::array<glm::vec<4, float>, 3>& pos, const FDB::Rect<std::int32_t>& viewPort)
+		[[nodiscard]] static box2_t<int> GetBox(const std::array<glm::vec<4, float>, 3>& pos, const FDB::Rect<std::int32_t>& viewPort)
 		{
 			box2_t<int> box;
 			box.min.x = std::max(viewPort.x, static_cast<int>(std::min({ pos[0].x, pos[1].x, pos[2].x })));
@@ -563,7 +558,7 @@ namespace FDB::Pipeline
 
 
 		template<typename T,std::size_t N>requires(N > 1 && N <= 4)
-		static glm::vec<3, T> InitializeEdgeFunction(const std::array<glm::vec<N, T>, 3>& pos, const box2_t<std::int32_t>& box,T scale )
+		[[nodiscard]] static glm::vec<3, T> InitializeEdgeFunction(const std::array<glm::vec<N, T>, 3>& pos, const box2_t<std::int32_t>& box,T scale )
 		{
 			using edge_fn_t = EdgeFunction<T>;
 
@@ -583,7 +578,7 @@ namespace FDB::Pipeline
 			};
 		}
 		template<typename T>
-		static deltaData_t<glm::vec<3, T>> InitializeStepEdgeData(const glm::vec<2, std::int32_t>& block, const box2_t<std::int32_t>& box, const glm::vec<2, std::int32_t>& blockSize, const deltaData_t<glm::vec<3, T>>& baseEdge)
+		[[nodiscard]] static deltaData_t<glm::vec<3, T>> InitializeStepEdgeData(const glm::vec<2, std::int32_t>& block, const box2_t<std::int32_t>& box, const glm::vec<2, std::int32_t>& blockSize, const deltaData_t<glm::vec<3, T>>& baseEdge)
 		{
 			glm::vec<2, T> step = { static_cast<T>(block.x - box.min.x),static_cast<T>(block.y - box.min.y)};
 			glm::vec<2, T> blockStep = { static_cast<T>(blockSize.x - 1) , static_cast<T>(blockSize.y - 1 )};
@@ -601,9 +596,9 @@ namespace FDB::Pipeline
 			return result;
 		}
 		template<bool In, typename T>
-		static bool IsBlock(const deltaData_t<glm::vec<3, T>>& blockEdgeData)
+		[[nodiscard]] static bool IsBlock(const deltaData_t<glm::vec<3, T>>& blockEdgeData)
 		{
-			std::array<float, 3> blockEdge;
+			std::array<T, 3> blockEdge;
 			if constexpr (In)
 			{
 				blockEdge[0] = blockEdgeData.data[0] + std::min(blockEdgeData.delta[0][0], static_cast<T>(0)) + std::min(blockEdgeData.delta[1][0], static_cast<T>(0));
@@ -625,12 +620,12 @@ namespace FDB::Pipeline
 		}
 
 		// interpolations
-		static glm::vec<3, float> GetInvW(const std::array<glm::vec<4, float>, 3>& position)
+		[[nodiscard]] static glm::vec<3, float> GetInvW(const std::array<glm::vec<4, float>, 3>& position)
 		{
 			return { 1.f / position[0].w ,1.f / position[1].w, 1.f / position[2].w };
 		}
 		template<typename T>
-		static deltaData_t<float> SetupLinearData(glm::vec<3, float> base, const deltaData_t<glm::vec<3, T>>& baseEdgeData, float invArea)
+		[[nodiscard]] static deltaData_t<float> SetupLinearData(glm::vec<3, float> base, const deltaData_t<glm::vec<3, T>>& baseEdgeData, float invArea)
 		{
 			deltaData_t<float> result;
 			result.data = {};
@@ -644,7 +639,7 @@ namespace FDB::Pipeline
 			data.data = (static_cast<float>(blockEdgeData.data[0]) * base[2] + static_cast<float>(blockEdgeData.data[1]) * base[0] + static_cast<float>(blockEdgeData.data[2]) * base[1]) * invArea;
 		}
 		template<typename T>
-		static deltaData_t<attributeData_t> SetupInterData(const  std::array<attributeData_t, 3>& startInter, const deltaData_t<glm::vec<3, T>>& baseEdgeData, float invArea)
+		[[nodiscard]] static deltaData_t<attributeData_t> SetupInterData(const  std::array<attributeData_t, 3>& startInter, const deltaData_t<glm::vec<3, T>>& baseEdgeData, float invArea)
 		{
 			deltaData_t<attributeData_t> result;
 			result.data = {};

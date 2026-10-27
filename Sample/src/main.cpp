@@ -14,7 +14,7 @@
 
 #include "GLM/detail/type_vec1.hpp"
 #include "Pipeline/Atribute.h"
-#include "Pipeline/Pipeline.h"
+#include "Pipeline/RenderPath.h"
 #include "Pipeline/Transform.h"
 #include "Core/LoadObj.h" 
 
@@ -38,13 +38,19 @@
 #include <array>
 	
 
-	// TODO MOVE TO FILE ATTRIBUTE
-
-	// TODO MOVE TO FILE ATTRIBUTE
-
-
-
 	
+
+	// TODO MOVE TO FILE ATTRIBUTE
+
+	// TODO MOVE TO FILE ATTRIBUTE
+#include <span>
+
+#include "Pipeline/Buffer.h"
+#include "Pipeline/FrameBuffer.h"
+#include "Pipeline/GraphicPipeline.h"
+
+	//#include "Pipeline/Buffer.h"
+#include "Core/ResourceManager.h"
 
 	
 
@@ -56,6 +62,142 @@
 
 	static constexpr std::int32_t renderHeight = 240;
 
+
+	namespace FDB::Render
+	{
+		enum class ResolutionMode : std::uint8_t
+		{
+			Manual,
+			Adaptative
+		};
+
+		struct SDLGraphicPipeline
+		{
+			SDLGraphicPipeline(FDB::Sdl::Window* windowPtr,const glm::vec<2,std::int32_t>& resolution) :m_windowPtr(windowPtr),m_nextResolution(resolution),m_mode(ResolutionMode::Adaptative)
+			{
+				m_renderer = FDB::Sdl::Renderer(*windowPtr);
+				m_pipeline = FDB::Pipeline::GraphicsPipeline(resolution);
+				this->SetResolutionMode(ResolutionMode::Manual);
+			}
+			SDLGraphicPipeline(FDB::Sdl::Window* windowPtr) : m_windowPtr(windowPtr), m_mode(ResolutionMode::Manual)
+			{
+				m_renderer = FDB::Sdl::Renderer(*windowPtr);
+				m_pipeline = FDB::Pipeline::GraphicsPipeline();
+				this->SetResolutionMode(ResolutionMode::Adaptative);
+			}
+			~SDLGraphicPipeline()
+			{
+				if (m_handle)
+					m_handle = Core::EventBus<Sdl::Event::WindowResize>::UnSubscribe(m_handle);
+			}
+
+			void ClearColor(const Color::RGBA8888& color)
+			{
+				m_renderer.Clear(color);
+			}
+			void BeginRender(const FDB::Rect<std::int32_t>& viewPort,const Color::RGBAFloat& color = Color::alphaFloat, float z = 1.f)
+			{
+				this->PrivateBegin(color,z);
+				m_viewPort = viewPort;
+			}
+			void BeginRender(const Color::RGBAFloat& color = Color::alphaFloat, float z = 1.f)
+			{
+				this->PrivateBegin(color,z);
+				m_viewPort.x = 0;
+				m_viewPort.y = 0;
+				m_viewPort.width = m_currentResolution.x;
+				m_viewPort.height = m_currentResolution.y;
+			}
+			void PresentRender()
+			{
+				m_texture.Update(m_frameBuffer.colorBuffer.data, m_currentResolution.x * static_cast<int>(sizeof(std::uint32_t)));
+				m_renderer.RenderTexture(m_texture);
+				m_renderer.Present();
+			}
+
+			void SetRenderResolution(const glm::vec<2, std::int32_t>& resolution)
+			{
+				if (m_mode == ResolutionMode::Adaptative)
+					return;
+				if (m_currentResolution == resolution)
+					return;
+				m_nextResolution = resolution;
+				m_dirtyResolution = true;
+			}
+			void SetResolutionMode(ResolutionMode mode)
+			{
+				if (m_mode == mode)
+					return;
+
+				m_mode = mode;
+				m_dirtyResolution = true;
+
+				if (m_mode == ResolutionMode::Adaptative)
+				{
+					m_nextResolution = m_windowPtr->GetPixelSize();
+					m_handle = Core::EventBus<Sdl::Event::WindowResize>::SubScribe<SDLGraphicPipeline, &SDLGraphicPipeline::CallBack>(this);
+				}
+				else
+				{
+					m_handle = Core::EventBus<Sdl::Event::WindowResize>::UnSubscribe(m_handle);
+				}
+			}
+			[[nodiscard]] ResolutionMode GetResolutionMode() const
+			{
+				return m_mode;
+			}
+			
+			[[nodiscard]] FDB::Rect<std::int32_t> GetViewPort() const 
+			{
+				return m_viewPort;
+			}
+			[[nodiscard]] glm::vec<2, std::int32_t> GetResolution() const
+			{
+				return m_currentResolution;
+			}
+			[[nodiscard]] Pipeline::FrameBuffer GetFrameBuffer() const
+			{
+				return m_frameBuffer;
+			}
+		private:
+			void PrivateBegin(const Color::RGBAFloat& color , float z )
+			{
+				this->SyncResolution();
+				m_pipeline.BeginRender(color, z);
+				m_frameBuffer = m_pipeline.GetBuffer();
+			}
+			void SyncResolution()
+			{
+				if (!m_dirtyResolution)
+					return;
+				m_dirtyResolution = false;
+				m_currentResolution = m_nextResolution;
+				m_pipeline.SetSize(m_currentResolution);
+				m_texture = FDB::Sdl::Texture(m_renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, m_currentResolution);
+			}
+			void CallBack(const Sdl::Event::WindowResize& event)
+			{
+				if (event.id != m_windowPtr->GetId())
+					return;
+				m_dirtyResolution = true;
+				m_nextResolution = event.size;
+			}
+			FDB::Sdl::Window* m_windowPtr =nullptr;
+			FDB::Pipeline::GraphicsPipeline m_pipeline = {};
+			FDB::Sdl::Texture m_texture = {};
+			FDB::Sdl::Renderer m_renderer = {};
+			FDB::Rect<std::int32_t> m_viewPort = {};
+			Pipeline::FrameBuffer m_frameBuffer = {};
+
+
+			ResolutionMode m_mode;
+			glm::vec<2, std::int32_t> m_currentResolution = {};
+			glm::vec<2, std::int32_t> m_nextResolution = {};
+			Core::EventBus<Sdl::Event::WindowResize>::BusHandle m_handle = {};
+			bool m_dirtyResolution = false;
+		};
+	}
+	
 
 
 	static constexpr size_t sizeLong = sizeof(long);
@@ -112,7 +254,7 @@
 		glm::mat4 model(1.0f);
 		model = glm::rotate(
 			model, angle, glm::normalize(glm::vec3(1.f, 1.f, 0.f)));
-		glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 25.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // set the view
+		glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // set the view
 		glm::mat4 projection = glm::perspectiveRH_ZO(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10000.0f); // set the projection
 		//glm::mat4 projection = glm::ortho(-4.0f, 4.0f, -3.0f, 3.0f,  0.1f, 10000.0f);
 		vertIn_t result = input;
@@ -128,9 +270,33 @@
 	{
 		return fragReturn_t::Color(out.vertex.color);
 	}
-	
+
+	struct Texture{};
+	std::unique_ptr<Texture> loadTexture(const std::filesystem::path& path)
+	{
+		return std::make_unique<Texture>();
+	}
+
 	int main(int argc, char* argv[])
 	{
+		FDB::Pipeline::buffer_t<int> intBuffer({ 10,10 });
+		intBuffer.Resize({ 40,40 });
+		intBuffer.Clear(0);
+
+		FDB::Pipeline::buffer_view_t<int> data = intBuffer.GetView();
+		++data.data;
+		*(data.data + 1) = 5;
+
+
+
+		//FilePathSystem::AddFilePath(std::filesystem::path());
+
+		//using textureLoad = ResourceManager < Texture, TypeWrapper<>, loadTexture>;
+
+		//auto test = textureLoad::Load("README.md");
+		//auto tes2t = textureLoad::Load("README.md");
+
+
 		using renderPath_t = FDB::Pipeline::RenderPath<
 			vertIn_t,
 			vertOut_t,
@@ -140,6 +306,9 @@
 			&VShader,
 			&FShader,
 			FDB::Pipeline::default_rasterizerOpt_t>;
+
+
+
 
 
 		renderPath_t pipeline;
@@ -153,32 +322,105 @@
 
 		FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
 		FDB::Sdl::Window window("test", { windowWidth,windowHeight }, SDL_WINDOW_RESIZABLE);
-		FDB::Sdl::Renderer renderer(window);
+		//FDB::Sdl::Renderer renderer(window);
 		//renderer.SetVSync(1);
 
 		glm::vec<2, std::int32_t> size = { renderWidth,renderHeight };
 
-		FDB::Sdl::Texture texture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, size);
-		std::vector<std::uint32_t> frameBuffer;
-		std::vector<float> zBuffer;
-		std::vector<glm::vec<4,float>> colorBuffer;
-		zBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
-		frameBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
-		colorBuffer.resize(static_cast<std::size_t>(size.x) * static_cast<std::size_t>(size.y));
+		//FDB::Sdl::Texture texture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, size);
+	
+		//FDB::Pipeline::GraphicsPipeline basePipeline;
 
-
-		Transform::Vertex a,b,c,d;
+		FDB::Render::SDLGraphicPipeline Grenderer(&window,size);
+		//Grenderer.SetResolutionMode(FDB::Render::ResolutionMode::Adaptative);
 		Uint64 lastTime = SDL_GetTicks();
 		std::uint32_t frameCount = 0;
 
 		int iteration = 0;
 		int maxiteration = 0;
 		int lastiteration = 0;
+
 		std::vector<Transform::Vertex> vertexList;
 		std::vector<std::uint32_t> indices;
 
+		//auto addFace = [&](glm::vec4 p0,
+		//	glm::vec4 p1,
+		//	glm::vec4 p2,
+		//	glm::vec4 p3,
+		//	glm::vec4 color)
+		//	{
+		//		unsigned int base = static_cast<unsigned int>(vertexList.size());
 
-		LoadObjFile::LoadObj(vertexList, indices, "C:/dev/FDB_Renderer/RSI-Arrastra.obj", "./");
+		//		Transform::Vertex v0, v1, v2, v3;
+
+		//		v0.pos = p0;
+		//		v1.pos = p1;
+		//		v2.pos = p2;
+		//		v3.pos = p3;
+
+		//		v0.color = { 1.f,0.f,0.f,1.f };
+		//		v1.color = { 0.f,1.f,0.f,1.f };
+		//		v2.color = { 0.f,0.f,1.f,1.f };
+		//		v3.color = { 1.f,1.f,1.f,1.f };
+
+		//		vertexList.push_back(v0);
+		//		vertexList.push_back(v1);
+		//		vertexList.push_back(v2);
+		//		vertexList.push_back(v3);
+
+		//		// Deux triangles CCW vus de l'extérieur
+		//		indices.insert(indices.end(), {
+		//			base, base + 1, base + 2,
+		//			base, base + 2, base + 3
+		//			});
+		//	};
+
+		//auto P = [](float x, float y, float z) {
+		//	return glm::vec4(x, y, z, 1.f);
+		//	};
+
+		//// Face arrière : rouge
+		//addFace(P(-1, -1, -1), P(-1, 1, -1),
+		//	P(1, 1, -1), P(1, -1, -1),
+		//	{ 1.f, 0.f, 0.f, 1.f });
+
+		//// Face avant : vert
+		//addFace(P(-1, -1, 1), P(1, -1, 1),
+		//	P(1, 1, 1), P(-1, 1, 1),
+		//	{ 0.f, 1.f, 0.f, 1.f });
+
+		//// Face gauche : bleu
+		//addFace(P(-1, -1, -1), P(-1, -1, 1),
+		//	P(-1, 1, 1), P(-1, 1, -1),
+		//	{ 0.f, 0.f, 1.f, 1.f });
+
+		//// Face droite : jaune
+		//addFace(P(1, -1, -1), P(1, 1, -1),
+		//	P(1, 1, 1), P(1, -1, 1),
+		//	{ 1.f, 1.f, 0.f, 1.f });
+
+		//// Face du bas : magenta
+		//// Face du bas (-Y) : normale vers le bas
+		//addFace(
+		//	P(-1, -1, -1),
+		//	P(1, -1, -1),
+		//	P(1, -1, 1),
+		//	P(-1, -1, 1),
+		//	{ 0.f, 1.f, 1.f, 1.f }
+		//);
+
+		//// Face du haut (+Y) : normale vers le haut
+		//addFace(
+		//	P(-1, 1, 1),
+		//	P(1, 1, 1),
+		//	P(1, 1, -1),
+		//	P(-1, 1, -1),
+		//	{ 0.f, 1.f, 1.f, 1.f }
+		//);
+
+
+		LoadObjFile::LoadObj(vertexList, indices, "C:/dev/FDB_Renderer/Resources/square.obj", "./");
+
 		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
 		{
 			FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
@@ -204,169 +446,22 @@
 				}
 			}
 
-			std::memset(frameBuffer.data(), 0, frameBuffer.size() * sizeof(std::uint32_t));
-			std::fill(zBuffer.begin(), zBuffer.end(), 1.f);
-			std::fill(colorBuffer.begin(), colorBuffer.end(), glm::vec<4,float>(0,0,0,0));
+			Grenderer.ClearColor(FDB::Color::black8);
+			Grenderer.BeginRender();
 
 
-			//std::vector<Transform::Vertex> vertexList;
-			//std::vector<std::uint32_t> indices;
-
-			//Transform::Vertex a, b, c, d, e, f, g, h, i, j, k, l, m, n, o;
-
-			// Cube centré en (0, 0, 0), côté 2
-
-			//auto addFace = [&](glm::vec4 p0,
-			//	glm::vec4 p1,
-			//	glm::vec4 p2,
-			//	glm::vec4 p3,
-			//	glm::vec4 color)
-			//	{
-			//		unsigned int base = static_cast<unsigned int>(vertexList.size());
-
-			//		Transform::Vertex v0, v1, v2, v3;
-
-			//		v0.pos = p0;
-			//		v1.pos = p1;
-			//		v2.pos = p2;
-			//		v3.pos = p3;
-
-			//		v0.color = { 1.f,0.f,0.f,1.f };
-			//		v1.color = { 0.f,1.f,0.f,1.f };
-			//		v2.color = { 0.f,0.f,1.f,1.f };
-			//		v3.color = { 1.f,1.f,1.f,1.f };
-
-			//		vertexList.push_back(v0);
-			//		vertexList.push_back(v1);
-			//		vertexList.push_back(v2);
-			//		vertexList.push_back(v3);
-
-			//		// Deux triangles CCW vus de l'extérieur
-			//		indices.insert(indices.end(), {
-			//			base, base + 1, base + 2,
-			//			base, base + 2, base + 3
-			//			});
-			//	};
-
-			//auto P = [](float x, float y, float z) {
-			//	return glm::vec4(x, y, z, 1.f);
-			//	};
-
-			//// Face arrière : rouge
-			//addFace(P(-1, -1, -1), P(-1, 1, -1),
-			//	P(1, 1, -1), P(1, -1, -1),
-			//	{ 1.f, 0.f, 0.f, 1.f });
-
-			//// Face avant : vert
-			//addFace(P(-1, -1, 1), P(1, -1, 1),
-			//	P(1, 1, 1), P(-1, 1, 1),
-			//	{ 0.f, 1.f, 0.f, 1.f });
-
-			//// Face gauche : bleu
-			//addFace(P(-1, -1, -1), P(-1, -1, 1),
-			//	P(-1, 1, 1), P(-1, 1, -1),
-			//	{ 0.f, 0.f, 1.f, 1.f });
-
-			//// Face droite : jaune
-			//addFace(P(1, -1, -1), P(1, 1, -1),
-			//	P(1, 1, 1), P(1, -1, 1),
-			//	{ 1.f, 1.f, 0.f, 1.f });
-
-			//// Face du bas : magenta
-			//// Face du bas (-Y) : normale vers le bas
-			//addFace(
-			//	P(-1, -1, -1),
-			//	P(1, -1, -1),
-			//	P(1,- 1, 1),
-			//	P(-1, -1, 1),
-			//	{ 0.f, 1.f, 1.f, 1.f }
-			//);
-
-			//// Face du haut (+Y) : normale vers le haut
-			//addFace(
-			//	P(-1, 1, 1),
-			//	P(1, 1, 1),
-			//	P(1, 1, -1),
-			//	P(-1, 1, -1),
-			//	{ 0.f, 1.f, 1.f, 1.f }
-			//);
 
 
-			FDB::Rect<std::int32_t> port;
-
-			renderer.Clear(FDB::Color::black8);
-			port.x = 0;
-			port.y =0;
-			port.width = size.x;
-			port.height = size.y;
-
-			FDB::Pipeline::Image<std::uint32_t> image;
-			image.buffer = frameBuffer.data();
-			image.bufferHeight = size.y;
-			image.bufferWidth = size.x;
-			FDB::Pipeline::Image<glm::vec<4,float>> color_image;
-			color_image.buffer = colorBuffer.data();
-			color_image.bufferHeight = size.y;
-			color_image.bufferWidth = size.x;
-			FDB::Pipeline::Image<float> z_image;
-			z_image.buffer = zBuffer.data();
-			z_image.bufferHeight = size.y;
-			z_image.bufferWidth = size.x;
-			auto bench = [&](auto fn, const char* name)
-				{
-					static constexpr int n = 1000;
-					const double freq = double(SDL_GetPerformanceFrequency());
-					Uint64 s = SDL_GetPerformanceCounter();
-					for (int i = 0; i < n; ++i) fn();
-					Uint64 e = SDL_GetPerformanceCounter();
-
-					double totalMs = double(e - s) * 1000.0 / freq;
-					printf("%s : %.4f ms/appel (%d iterations, %.2f ms total)\n",
-						name, totalMs / n, n, totalMs);
-				};
-
-			
-
-			//bench([&] { FDB::Pipeline::Rasterizer::TriangleRasterizer<Vertex>::Compute<Test2::FragmentState::Keep>({ a,c,b }, port, image, [&](const Vertex& vertex, const glm::vec<2, std::int32_t>& pixel, float) -> Test2::fragment_output_t<Test2::FragmentState::Keep> { return  Test2::fragment_output_t<Test2::FragmentState::Keep>::Color(vertex.color);});}, "Rasterizer V2");
-			//bench([&] { Rasterizer::Compute<Vertex, VertexInterpolation>({ a, c, b }, port, frameBuffer.data(), zBuffer.data(), size.x); }, "Rasterizer V1");
-			//Rasterizer::Compute<Vertex,VertexInterpolation>({ a, c, b }, port, frameBuffer.data(),zBuffer.data(), size.x);
-
-			using rasterizer_t = FDB::Pipeline::TriangleRasterizer<Transform::Vertex>;
-			using fragmentState_t = FDB::Pipeline::FragmentState;
-			using fragmentOutput = FDB::Pipeline::fragment_output_t<fragmentState_t::Keep>;
-			using fragmentInput_t = FDB::Pipeline::FragmentInput<Transform::Vertex>;
-
-			FDB::Pipeline::ImagesData imageData;
-			imageData.colorImage = color_image;
-			imageData.zBuffer = z_image;
-			imageData.finalImage = image;
-
-			Transform::Mesh mesh;
-			mesh.vertices = vertexList;
-			mesh.indices = indices;
-			/*auto fragmentShader = [&](const fragmentInput_t& input)
-			{
-				return  fragmentOutput::Color(input.vertex.color);
-			};
-
-		
-			
-			using blendEnum = FDB::Pipeline::BlendFactor;
-			using blendOp = FDB::Pipeline::BlendOp;
-			using blendT = FDB::Pipeline::blendData_t < blendEnum::SrcAlpha, blendEnum::OneMinusSrcAlpha, blendOp::Add>;
-			using DepthEnum = FDB::Pipeline::DepthOp;
-			using DepthT = FDB::Pipeline::depthData_t<false, false, FDB::Pipeline::DepthOp::Never>;
-			using cullType = FDB::Pipeline::cullData_t<FDB::Pipeline::CullFace::CCW, FDB::Pipeline::CullMode::Back>;
-		auto rasterizer = 	[&](Transform::Vertex a, Transform::Vertex b, Transform::Vertex c) {				
-			rasterizer_t::Compute< cullType, blendT, DepthT>({a,b,c }, port, imageData, fragmentShader);
-			};
-			Pipeline::createSommetList(vertexList, port, rasterizer);*/
 			angle += 0.001f;
-			//LoadObjFile::LoadObj(vertexList, "C:/dev/FDB_Renderer/RSI-Arrastra.obj", "./");
-			pipeline.Draw(vertexList.data(), indices.data(), indices.size(), port, imageData);
-			texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
-			renderer.RenderTexture(texture);
-			renderer.Present();
+			//auto startP = std::chrono::high_resolution_clock::now();
+			pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+			//auto endP = std::chrono::high_resolution_clock::now();
+
+			//auto result = endP - startP;
+
+		  //std::cout << result.count() << " \n";
+
+			Grenderer.PresentRender();
 		}
 		FDB::Sdl::Application::Destroy();
 		

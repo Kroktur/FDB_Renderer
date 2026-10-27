@@ -20,7 +20,7 @@ namespace FDB::Sdl
 		Window(const char* title, glm::vec<2, std::uint32_t> size, SDL_WindowFlags flags);
 		Window(const Window&) = delete;
 		Window(Window&& other) noexcept;
-
+		Window() = default;
 		~Window();
 		Window& operator=(const Window&) = delete;
 		Window& operator=(Window&& other) noexcept;
