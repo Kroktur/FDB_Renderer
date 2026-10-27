@@ -50,8 +50,7 @@
 
 	//#include "Pipeline/Buffer.h"
 #include "Core/ResourceManager.h"
-
-	
+#include "Render/GraphicPipeline.h"
 
 
 	static constexpr std::int32_t windowWidth = 800;
@@ -62,141 +61,7 @@
 	static constexpr std::int32_t renderHeight = 240;
 
 
-	namespace FDB::Render
-	{
-		enum class ResolutionMode : std::uint8_t
-		{
-			Manual,
-			Adaptative
-		};
 
-		struct SDLGraphicPipeline
-		{
-			SDLGraphicPipeline(FDB::Sdl::Window* windowPtr,const glm::vec<2,std::int32_t>& resolution) :m_windowPtr(windowPtr),m_nextResolution(resolution),m_mode(ResolutionMode::Adaptative)
-			{
-				m_renderer = FDB::Sdl::Renderer(*windowPtr);
-				m_pipeline = FDB::Pipeline::GraphicsPipeline(resolution);
-				this->SetResolutionMode(ResolutionMode::Manual);
-			}
-			SDLGraphicPipeline(FDB::Sdl::Window* windowPtr) : m_windowPtr(windowPtr), m_mode(ResolutionMode::Manual)
-			{
-				m_renderer = FDB::Sdl::Renderer(*windowPtr);
-				m_pipeline = FDB::Pipeline::GraphicsPipeline();
-				this->SetResolutionMode(ResolutionMode::Adaptative);
-			}
-			~SDLGraphicPipeline()
-			{
-				if (m_handle)
-					m_handle = Core::EventBus<Sdl::Event::WindowResize>::UnSubscribe(m_handle);
-			}
-
-			void ClearColor(const Color::RGBA8888& color)
-			{
-				m_renderer.Clear(color);
-			}
-			void BeginRender(const FDB::Rect<std::int32_t>& viewPort,const Color::RGBAFloat& color = Color::alphaFloat, float z = 1.f)
-			{
-				this->PrivateBegin(color,z);
-				m_viewPort = viewPort;
-			}
-			void BeginRender(const Color::RGBAFloat& color = Color::alphaFloat, float z = 1.f)
-			{
-				this->PrivateBegin(color,z);
-				m_viewPort.x = 0;
-				m_viewPort.y = 0;
-				m_viewPort.width = m_currentResolution.x;
-				m_viewPort.height = m_currentResolution.y;
-			}
-			void PresentRender()
-			{
-				m_texture.Update(m_frameBuffer.colorBuffer.data, m_currentResolution.x * static_cast<int>(sizeof(std::uint32_t)));
-				m_renderer.RenderTexture(m_texture);
-				m_renderer.Present();
-			}
-
-			void SetRenderResolution(const glm::vec<2, std::int32_t>& resolution)
-			{
-				if (m_mode == ResolutionMode::Adaptative)
-					return;
-				if (m_currentResolution == resolution)
-					return;
-				m_nextResolution = resolution;
-				m_dirtyResolution = true;
-			}
-			void SetResolutionMode(ResolutionMode mode)
-			{
-				if (m_mode == mode)
-					return;
-
-				m_mode = mode;
-				m_dirtyResolution = true;
-
-				if (m_mode == ResolutionMode::Adaptative)
-				{
-					m_nextResolution = m_windowPtr->GetPixelSize();
-					m_handle = Core::EventBus<Sdl::Event::WindowResize>::SubScribe<SDLGraphicPipeline, &SDLGraphicPipeline::CallBack>(this);
-				}
-				else
-				{
-					m_handle = Core::EventBus<Sdl::Event::WindowResize>::UnSubscribe(m_handle);
-				}
-			}
-			[[nodiscard]] ResolutionMode GetResolutionMode() const
-			{
-				return m_mode;
-			}
-			
-			[[nodiscard]] FDB::Rect<std::int32_t> GetViewPort() const 
-			{
-				return m_viewPort;
-			}
-			[[nodiscard]] glm::vec<2, std::int32_t> GetResolution() const
-			{
-				return m_currentResolution;
-			}
-			[[nodiscard]] Pipeline::FrameBuffer GetFrameBuffer() const
-			{
-				return m_frameBuffer;
-			}
-		private:
-			void PrivateBegin(const Color::RGBAFloat& color , float z )
-			{
-				this->SyncResolution();
-				m_pipeline.BeginRender(color, z);
-				m_frameBuffer = m_pipeline.GetBuffer();
-			}
-			void SyncResolution()
-			{
-				if (!m_dirtyResolution)
-					return;
-				m_dirtyResolution = false;
-				m_currentResolution = m_nextResolution;
-				m_pipeline.SetSize(m_currentResolution);
-				m_texture = FDB::Sdl::Texture(m_renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, m_currentResolution);
-			}
-			void CallBack(const Sdl::Event::WindowResize& event)
-			{
-				if (event.id != m_windowPtr->GetId())
-					return;
-				m_dirtyResolution = true;
-				m_nextResolution = event.size;
-			}
-			FDB::Sdl::Window* m_windowPtr =nullptr;
-			FDB::Pipeline::GraphicsPipeline m_pipeline = {};
-			FDB::Sdl::Texture m_texture = {};
-			FDB::Sdl::Renderer m_renderer = {};
-			FDB::Rect<std::int32_t> m_viewPort = {};
-			Pipeline::FrameBuffer m_frameBuffer = {};
-
-
-			ResolutionMode m_mode;
-			glm::vec<2, std::int32_t> m_currentResolution = {};
-			glm::vec<2, std::int32_t> m_nextResolution = {};
-			Core::EventBus<Sdl::Event::WindowResize>::BusHandle m_handle = {};
-			bool m_dirtyResolution = false;
-		};
-	}
-	
 
 
 	static constexpr size_t sizeLong = sizeof(long);
@@ -234,6 +99,9 @@
 
 	static constexpr  auto size = sizeof(std::atomic_flag);
 }
+
+	
+#include "KTR/Tools/KTR_Chrono.h"
 
 	
 
@@ -450,7 +318,15 @@
 
 
 			angle += 0.001f;
+			KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
+			timer.Resume();
+			auto actual = KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(timer.GetTime());
+
 			pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+
+			auto now = KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(timer.GetTime());
+
+			std::cout << (now - actual).count() << "\n";
 			Grenderer.PresentRender();
 		}
 		FDB::Sdl::Application::Destroy();

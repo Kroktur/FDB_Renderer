@@ -7,11 +7,11 @@
 
 struct FilePathSystem
 {
-	static void AddFilePath(const std::filesystem::path& view)
+	inline static void AddFilePath(const std::filesystem::path& view)
 	{
 		m_allPath.emplace_back(view);
 	}
-	[[nodiscard]] static std::filesystem::path GetAbsoluteFilePath(const std::filesystem::path& file)
+	inline [[nodiscard]] static std::filesystem::path GetAbsoluteFilePath(const std::filesystem::path& file)
 	{
 		for (auto& path : m_allPath)
 		{

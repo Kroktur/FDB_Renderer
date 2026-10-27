@@ -78,7 +78,9 @@ set(GLM_HEADER ${GLM}/include)
 set(TINYOBJ ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/tinyobj)
 set(TINYOBJ_HEADER ${TINYOBJ}/include)
 
-
+#KTR
+set(KTR ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/ktr)
+set(KTR_HEADER ${KTR}/include)
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC 
@@ -87,6 +89,7 @@ target_include_directories(${PROJECT_NAME}
     ${SDL3_HEADER}
     ${GLM_HEADER}
     ${TINYOBJ_HEADER}
+    ${KTR_HEADER}
     PRIVATE
   # ${MYLIB_HEADER}
 )
