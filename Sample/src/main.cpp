@@ -16,6 +16,7 @@
 #include "Pipeline/Atribute.h"
 #include "Pipeline/Pipeline.h"
 #include "Pipeline/Transform.h"
+#include "Core/LoadObj.h" 
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -111,7 +112,7 @@
 		glm::mat4 model(1.0f);
 		model = glm::rotate(
 			model, angle, glm::normalize(glm::vec3(1.f, 1.f, 0.f)));
-		glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // set the view
+		glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 25.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // set the view
 		glm::mat4 projection = glm::perspectiveRH_ZO(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10000.0f); // set the projection
 		//glm::mat4 projection = glm::ortho(-4.0f, 4.0f, -3.0f, 3.0f,  0.1f, 10000.0f);
 		vertIn_t result = input;
@@ -173,6 +174,11 @@
 		int iteration = 0;
 		int maxiteration = 0;
 		int lastiteration = 0;
+		std::vector<Transform::Vertex> vertexList;
+		std::vector<std::uint32_t> indices;
+
+
+		LoadObjFile::LoadObj(vertexList, indices, "C:/dev/FDB_Renderer/RSI-Arrastra.obj", "./");
 		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
 		{
 			FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
@@ -203,89 +209,87 @@
 			std::fill(colorBuffer.begin(), colorBuffer.end(), glm::vec<4,float>(0,0,0,0));
 
 
-			std::vector<Transform::Vertex> vertexList;
-			std::vector<std::uint32_t> indices;
+			//std::vector<Transform::Vertex> vertexList;
+			//std::vector<std::uint32_t> indices;
 
-			Transform::Vertex a, b, c, d, e, f, g, h, i, j, k, l, m, n, o;
+			//Transform::Vertex a, b, c, d, e, f, g, h, i, j, k, l, m, n, o;
 
 			// Cube centré en (0, 0, 0), côté 2
-			vertexList.clear();
-			indices.clear();
 
-			auto addFace = [&](glm::vec4 p0,
-				glm::vec4 p1,
-				glm::vec4 p2,
-				glm::vec4 p3,
-				glm::vec4 color)
-				{
-					unsigned int base = static_cast<unsigned int>(vertexList.size());
+			//auto addFace = [&](glm::vec4 p0,
+			//	glm::vec4 p1,
+			//	glm::vec4 p2,
+			//	glm::vec4 p3,
+			//	glm::vec4 color)
+			//	{
+			//		unsigned int base = static_cast<unsigned int>(vertexList.size());
 
-					Transform::Vertex v0, v1, v2, v3;
+			//		Transform::Vertex v0, v1, v2, v3;
 
-					v0.pos = p0;
-					v1.pos = p1;
-					v2.pos = p2;
-					v3.pos = p3;
+			//		v0.pos = p0;
+			//		v1.pos = p1;
+			//		v2.pos = p2;
+			//		v3.pos = p3;
 
-					v0.color = { 1.f,0.f,0.f,1.f };
-					v1.color = { 0.f,1.f,0.f,1.f };
-					v2.color = { 0.f,0.f,1.f,1.f };
-					v3.color = { 1.f,1.f,1.f,1.f };
+			//		v0.color = { 1.f,0.f,0.f,1.f };
+			//		v1.color = { 0.f,1.f,0.f,1.f };
+			//		v2.color = { 0.f,0.f,1.f,1.f };
+			//		v3.color = { 1.f,1.f,1.f,1.f };
 
-					vertexList.push_back(v0);
-					vertexList.push_back(v1);
-					vertexList.push_back(v2);
-					vertexList.push_back(v3);
+			//		vertexList.push_back(v0);
+			//		vertexList.push_back(v1);
+			//		vertexList.push_back(v2);
+			//		vertexList.push_back(v3);
 
-					// Deux triangles CCW vus de l'extérieur
-					indices.insert(indices.end(), {
-						base, base + 1, base + 2,
-						base, base + 2, base + 3
-						});
-				};
+			//		// Deux triangles CCW vus de l'extérieur
+			//		indices.insert(indices.end(), {
+			//			base, base + 1, base + 2,
+			//			base, base + 2, base + 3
+			//			});
+			//	};
 
-			auto P = [](float x, float y, float z) {
-				return glm::vec4(x, y, z, 1.f);
-				};
+			//auto P = [](float x, float y, float z) {
+			//	return glm::vec4(x, y, z, 1.f);
+			//	};
 
-			// Face arrière : rouge
-			addFace(P(-1, -1, -1), P(-1, 1, -1),
-				P(1, 1, -1), P(1, -1, -1),
-				{ 1.f, 0.f, 0.f, 1.f });
+			//// Face arrière : rouge
+			//addFace(P(-1, -1, -1), P(-1, 1, -1),
+			//	P(1, 1, -1), P(1, -1, -1),
+			//	{ 1.f, 0.f, 0.f, 1.f });
 
-			// Face avant : vert
-			addFace(P(-1, -1, 1), P(1, -1, 1),
-				P(1, 1, 1), P(-1, 1, 1),
-				{ 0.f, 1.f, 0.f, 1.f });
+			//// Face avant : vert
+			//addFace(P(-1, -1, 1), P(1, -1, 1),
+			//	P(1, 1, 1), P(-1, 1, 1),
+			//	{ 0.f, 1.f, 0.f, 1.f });
 
-			// Face gauche : bleu
-			addFace(P(-1, -1, -1), P(-1, -1, 1),
-				P(-1, 1, 1), P(-1, 1, -1),
-				{ 0.f, 0.f, 1.f, 1.f });
+			//// Face gauche : bleu
+			//addFace(P(-1, -1, -1), P(-1, -1, 1),
+			//	P(-1, 1, 1), P(-1, 1, -1),
+			//	{ 0.f, 0.f, 1.f, 1.f });
 
-			// Face droite : jaune
-			addFace(P(1, -1, -1), P(1, 1, -1),
-				P(1, 1, 1), P(1, -1, 1),
-				{ 1.f, 1.f, 0.f, 1.f });
+			//// Face droite : jaune
+			//addFace(P(1, -1, -1), P(1, 1, -1),
+			//	P(1, 1, 1), P(1, -1, 1),
+			//	{ 1.f, 1.f, 0.f, 1.f });
 
-			// Face du bas : magenta
-			// Face du bas (-Y) : normale vers le bas
-			addFace(
-				P(-1, -1, -1),
-				P(1, -1, -1),
-				P(1,- 1, 1),
-				P(-1, -1, 1),
-				{ 0.f, 1.f, 1.f, 1.f }
-			);
+			//// Face du bas : magenta
+			//// Face du bas (-Y) : normale vers le bas
+			//addFace(
+			//	P(-1, -1, -1),
+			//	P(1, -1, -1),
+			//	P(1,- 1, 1),
+			//	P(-1, -1, 1),
+			//	{ 0.f, 1.f, 1.f, 1.f }
+			//);
 
-			// Face du haut (+Y) : normale vers le haut
-			addFace(
-				P(-1, 1, 1),
-				P(1, 1, 1),
-				P(1, 1, -1),
-				P(-1, 1, -1),
-				{ 0.f, 1.f, 1.f, 1.f }
-			);
+			//// Face du haut (+Y) : normale vers le haut
+			//addFace(
+			//	P(-1, 1, 1),
+			//	P(1, 1, 1),
+			//	P(1, 1, -1),
+			//	P(-1, 1, -1),
+			//	{ 0.f, 1.f, 1.f, 1.f }
+			//);
 
 
 			FDB::Rect<std::int32_t> port;
@@ -358,6 +362,7 @@
 			};
 			Pipeline::createSommetList(vertexList, port, rasterizer);*/
 			angle += 0.001f;
+			//LoadObjFile::LoadObj(vertexList, "C:/dev/FDB_Renderer/RSI-Arrastra.obj", "./");
 			pipeline.Draw(vertexList.data(), indices.data(), indices.size(), port, imageData);
 			texture.Update(frameBuffer.data(), size.x * static_cast<int>(sizeof(std::uint32_t)));
 			renderer.RenderTexture(texture);

@@ -22,7 +22,7 @@ namespace FDB::Pipeline
 
 	template<ValidCullData cullT, ValidBlendData blendT, ValidDepthData depthT, ValidWriteMaskData writeT >
 	using rasterizerOpt_t = RasterizerOpt<cullT, blendT, depthT, writeT>;
-	using default_rasterizerOpt_t = rasterizerOpt_t<default_cullData_t, default_blendData_t, default_depthData_t, rgba_writeMaskData_t>;
+	using default_rasterizerOpt_t = rasterizerOpt_t<CullData<CullFace::CCW,CullMode::None>, default_blendData_t, default_depthData_t, rgba_writeMaskData_t>;
 
 	template<typename T>
 	static constexpr bool is_rasterizerOpt_v = is_rasterizerOpt<T>::value;
@@ -117,6 +117,7 @@ namespace FDB::Pipeline
 			outTriangle_t triangles;
 			float area;
 		};
+
 
 		void BindVInData(vIn_data_t* _buffer)
 		{

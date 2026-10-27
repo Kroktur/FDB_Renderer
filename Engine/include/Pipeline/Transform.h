@@ -7,20 +7,27 @@
 
 class Transform {
 public:
+
     struct Vertex
     {
         glm::vec4 pos;
+        glm::vec3 normal;
+        glm::vec2 uv;
         glm::vec<4, float> color;
         static  constexpr  FDB::Pipeline::Data PosAttribute()
         {
             return FDB::Pipeline::Data{ FDB::Pipeline::format::Float4,offsetof(Vertex, pos) };
         }
-        static constexpr  std::array<FDB::Pipeline::Data, 2> AllAttributes()
+        static constexpr  std::array<FDB::Pipeline::Data, 4> AllAttributes()
         {
-            return { FDB::Pipeline::Data{FDB::Pipeline::format::Float4,offsetof(Vertex, pos)},FDB::Pipeline::Data{FDB::Pipeline::format::Float4,offsetof(Vertex, color)} };
+            return { FDB::Pipeline::Data{FDB::Pipeline::format::Float4,offsetof(Vertex, pos)},
+                FDB::Pipeline::Data{FDB::Pipeline::format::Float3,offsetof(Vertex, normal)},
+                FDB::Pipeline::Data{FDB::Pipeline::format::Float2,offsetof(Vertex, uv)},
+                FDB::Pipeline::Data{FDB::Pipeline::format::Float4,offsetof(Vertex, color)}
+
+            };
         }
     };
-
     struct Mesh
     {
         std::vector<Vertex> vertices;
