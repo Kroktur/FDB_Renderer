@@ -28,9 +28,24 @@ public:
             };
         }
     };
-    struct Mesh
+    struct SubMesh
     {
+        SubMesh() = default;
+        SubMesh(SubMesh&&) noexcept = default;
+        SubMesh& operator=(SubMesh&&) noexcept = default;
+        SubMesh(const SubMesh&) = default;
+        SubMesh& operator=(const SubMesh&) = default;
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
+    };
+    struct Mesh
+    {
+
+        Mesh() = default;
+        Mesh(Mesh&&) noexcept = default;
+        Mesh& operator=(Mesh&&) noexcept = default;
+        Mesh(const Mesh&) = default;
+        Mesh& operator=(const Mesh&) = default;
+        std::vector<SubMesh> subMeshes;
     };
 };

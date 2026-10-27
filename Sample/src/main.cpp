@@ -255,7 +255,7 @@
 		model = glm::rotate(
 			model, angle, glm::normalize(glm::vec3(1.f, 1.f, 0.f)));
 		glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // set the view
-		glm::mat4 projection = glm::perspectiveRH_ZO(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10000.0f); // set the projection
+		glm::mat4 projection = glm::perspectiveRH_ZO(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f); // set the projection
 		//glm::mat4 projection = glm::ortho(-4.0f, 4.0f, -3.0f, 3.0f,  0.1f, 10000.0f);
 		vertIn_t result = input;
 		glm::vec4 position(result.pos);
@@ -277,6 +277,11 @@
 		return std::make_unique<Texture>();
 	}
 
+	 std::unique_ptr<Transform::Mesh> loadMesh(const std::filesystem::path& path)
+	{
+		 return LoadObjFile::LoadObj(path.string());
+	}
+
 	int main(int argc, char* argv[])
 	{
 		FDB::Pipeline::buffer_t<int> intBuffer({ 10,10 });
@@ -287,13 +292,15 @@
 		++data.data;
 		*(data.data + 1) = 5;
 
+		std::filesystem::path path = argv[0];
+		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path()/ "Resources");
 
+		std::unique_ptr mzqhh = loadMesh(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources" / "square.obj");
+		std::cout << argv[0] << "\n";
 
-		//FilePathSystem::AddFilePath(std::filesystem::path());
+		using meshLoad = ResourceManager < Transform::Mesh, TypeWrapper<>, loadMesh>;
 
-		//using textureLoad = ResourceManager < Texture, TypeWrapper<>, loadTexture>;
-
-		//auto test = textureLoad::Load("README.md");
+		auto* mesh = meshLoad::Load("square.obj");
 		//auto tes2t = textureLoad::Load("README.md");
 
 
@@ -418,9 +425,6 @@
 		//	{ 0.f, 1.f, 1.f, 1.f }
 		//);
 
-
-		LoadObjFile::LoadObj(vertexList, indices, "C:/dev/FDB_Renderer/Resources/square.obj", "./");
-
 		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
 		{
 			FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
@@ -454,7 +458,9 @@
 
 			angle += 0.001f;
 			//auto startP = std::chrono::high_resolution_clock::now();
-			pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+			auto subs = mesh->subMeshes;
+			for(auto& sub : subs)
+				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
 			//auto endP = std::chrono::high_resolution_clock::now();
 
 			//auto result = endP - startP;

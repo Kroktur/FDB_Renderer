@@ -7,13 +7,11 @@
 #include <unordered_map>
 #include <functional>
 
-void LoadObjFile::LoadObj(std::vector<Transform::Vertex>& vertexList, std::vector<std::uint32_t>& indices, std::string ObjFile, std::string exePath)
+std::unique_ptr<Transform::Mesh> LoadObjFile::LoadObj(std::string ObjFile)
 {
-    vertexList.clear();
-    indices.clear();
-
+    std::unique_ptr<Transform::Mesh> Mesh = std::make_unique<Transform::Mesh>();
     tinyobj::ObjReaderConfig config;
-    config.mtl_search_path = exePath;
+    //config.mtl_search_path = exePath;
     config.triangulate = true;
 
     tinyobj::ObjReader reader;
@@ -28,9 +26,11 @@ void LoadObjFile::LoadObj(std::vector<Transform::Vertex>& vertexList, std::vecto
     const auto& shapes = reader.GetShapes();
 
     std::unordered_map<VertexKey, std::uint32_t, VertexKeyHash> uniqueVertices;
-
+    // creer mesh
     for (const auto& shape : shapes)
     {
+        Transform::SubMesh SubMesh;
+        //push submesh
         for (const auto& idx : shape.mesh.indices)
         {
             VertexKey key{ idx.vertex_index, idx.normal_index, idx.texcoord_index };
@@ -65,15 +65,17 @@ void LoadObjFile::LoadObj(std::vector<Transform::Vertex>& vertexList, std::vecto
                     //vertex.uv.y = attrib.texcoords[2 * idx.texcoord_index + 1];
                 }
 
-                std::uint32_t newIndex = static_cast<std::uint32_t>(vertexList.size());
+                std::uint32_t newIndex = static_cast<std::uint32_t>(SubMesh.vertices.size());
                 uniqueVertices[key] = newIndex;
-                vertexList.push_back(vertex);
-                indices.push_back(newIndex);
+                SubMesh.vertices.push_back(vertex);
+                SubMesh.indices.push_back(newIndex);
             }
             else
             {
-                indices.push_back(it->second);
+                SubMesh.indices.push_back(it->second);
             }
         }
+        Mesh->subMeshes.push_back(SubMesh);
     }
+    return Mesh;
 }

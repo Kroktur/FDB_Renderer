@@ -7,7 +7,8 @@
 struct LoadObjFile
 {
 public:
-	static void LoadObj(std::vector<Transform::Vertex>& vertexList, std::vector<std::uint32_t> &indices, std::string ObjFile, std::string exePath);
+    static std::unique_ptr<Transform::Mesh> LoadObj(std::string ObjFile);
+
     struct VertexKey
     {
         int v, n, t;
