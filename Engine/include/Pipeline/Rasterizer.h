@@ -345,18 +345,15 @@ namespace FDB::Pipeline
 				glm::vec<3, fixed_value_t>(setup.fixedBaseEdgeData.delta[0][0], setup.fixedBaseEdgeData.delta[0][1], setup.fixedBaseEdgeData.delta[0][2]),
 				glm::vec<3, fixed_value_t>(setup.fixedBaseEdgeData.delta[1][0], setup.fixedBaseEdgeData.delta[1][1], setup.fixedBaseEdgeData.delta[1][2]) };
 
-
 			for (std::int32_t blockY = setup.box.min.y; blockY <= setup.box.max.y; blockY += blockDim.y)
 			{
 				blockSetup.block.blockSize.y = std::min(blockDim.y, setup.box.max.y - blockY + 1);
 				for (std::int32_t blockX = setup.box.min.x; blockX <= setup.box.max.x; blockX += blockDim.x)
 				{
-
 					blockSetup.block.blockSize.x = std::min(blockDim.x, setup.box.max.x - blockX + 1);
-
 					blockSetup.block.blockOrigin = { blockX, blockY };
-					deltaData_t<glm::vec<3, fixed_value_t>> fixedBlockEdgeData = TriangleRasterizer::InitializeStepEdgeData(blockSetup.block.blockOrigin, setup.box, blockSetup.block.blockSize, setup.fixedBaseEdgeData);
 
+					deltaData_t<glm::vec<3, fixed_value_t>> fixedBlockEdgeData = TriangleRasterizer::InitializeStepEdgeData(blockSetup.block.blockOrigin, setup.box, blockSetup.block.blockSize, setup.fixedBaseEdgeData);
 					if (TriangleRasterizer::IsBlock<false>(fixedBlockEdgeData))
 						continue;
 
@@ -378,10 +375,11 @@ namespace FDB::Pipeline
 			}
 		}
 		template< ValidBlendData blendT, ValidDepthData depthT, ValidWriteMaskData writeT, typename fragmentShaderT> 
-			static void PixelLoop(const triangle_t& triangle, BlockSetup& setup, const FrameBuffer& image, const fragmentShaderT& fragmentShader)
+			static void PixelLoop(const triangle_t& triangle,const BlockSetup& setup, const FrameBuffer& image, const fragmentShaderT& fragmentShader)
 		{
 				FragmentSetup applySetup;
 				BlockSetup currentSetup = setup;
+
 				for (std::int32_t y = 0; y < currentSetup.block.blockSize.y; ++y)
 				{
 				
@@ -409,10 +407,7 @@ namespace FDB::Pipeline
 						applySetup.fixedInter += currentSetup.fixedInterData.delta[0];
 
 					}
-
-				
-
-					currentSetup.fixedZData.data += currentSetup.fixedWData.delta[1];
+					currentSetup.fixedWData.data += currentSetup.fixedWData.delta[1];
 					currentSetup.fixedZData.data += currentSetup.fixedZData.delta[1];
 					currentSetup.fixedInterData.data += currentSetup.fixedInterData.delta[1];
 				}

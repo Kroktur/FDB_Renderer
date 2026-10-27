@@ -49,7 +49,7 @@
 #include "Pipeline/GraphicPipeline.h"
 
 	//#include "Pipeline/Buffer.h"
-
+#include "Core/ResourceManager.h"
 
 	
 
@@ -196,7 +196,7 @@
 			bool m_dirtyResolution = false;
 		};
 	}
-
+	
 
 
 	static constexpr size_t sizeLong = sizeof(long);
@@ -269,7 +269,13 @@
 	{
 		return fragReturn_t::Color(out.vertex.color);
 	}
-	
+
+	struct Texture{};
+	std::unique_ptr<Texture> loadTexture(const std::filesystem::path& path)
+	{
+		return std::make_unique<Texture>();
+	}
+
 	int main(int argc, char* argv[])
 	{
 		FDB::Pipeline::buffer_t<int> intBuffer({ 10,10 });
@@ -280,9 +286,14 @@
 		++data.data;
 		*(data.data + 1) = 5;
 
-		
 
 
+		FilePathSystem::AddFilePath(std::filesystem::path("C:/Users/arthu/Desktop/FDB_Render"));
+
+		using textureLoad = ResourceManager < Texture, TypeWrapper<>, loadTexture>;
+
+		auto test = textureLoad::Load("README.md");
+		auto tes2t = textureLoad::Load("README.md");
 
 
 		using renderPath_t = FDB::Pipeline::RenderPath<

@@ -9,9 +9,9 @@ FDB::Pipeline::GraphicsPipeline::GraphicsPipeline(const glm::vec<2, std::int32_t
 
 void FDB::Pipeline::GraphicsPipeline::SetSize(const glm::vec<2, std::int32_t>& size)
 {
-	if (m_size ==size)
+
+	if (m_size == size)
 		return;
-	m_size = size;
 	Resize(m_size);
 
 }
@@ -37,7 +37,8 @@ FDB::Pipeline::FrameBuffer FDB::Pipeline::GraphicsPipeline::GetBuffer()
 
 void FDB::Pipeline::GraphicsPipeline::Resize(const glm::vec<2, std::int32_t>& size)
 {
-	m_colorFBuffer.Resize(size);
-	m_colorBuffer.Resize(size);
-	m_zBuffer.Resize(size);
+	m_size = size;
+	m_colorFBuffer.Resize(m_size);
+	m_colorBuffer.Resize(m_size);
+	m_zBuffer.Resize(m_size);
 }
