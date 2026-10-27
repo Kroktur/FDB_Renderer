@@ -6,14 +6,14 @@ namespace FDB::Sdl
 	{
 		if (!SDL_Init(flags))
 			throw std::logic_error("SDL_failed");
-		m_handle = Core::EventBus<Event::Quit>::SubScribe<&Application::CallBack>();
+		m_handle = Pipeline::EventBus<Event::Quit>::SubScribe<&Application::CallBack>();
 		m_init = true;
 	}
 
 	void Application::Destroy()
 	{
 		SDL_Quit();
-		m_handle = Core::EventBus<Event::Quit>::UnSubscribe(m_handle);
+		m_handle = Pipeline::EventBus<Event::Quit>::UnSubscribe(m_handle);
 		m_init = false;
 	}
 

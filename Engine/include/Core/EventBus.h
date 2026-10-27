@@ -6,7 +6,7 @@
 #include <type_traits>
 #include <vector>
 
-namespace FDB::Core
+namespace FDB::Pipeline
 {
 	template<typename EventType>
 	struct EventBus

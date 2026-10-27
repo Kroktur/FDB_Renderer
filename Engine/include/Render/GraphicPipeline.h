@@ -58,7 +58,7 @@ namespace FDB::Render
 		ResolutionMode m_mode;
 		glm::vec<2, std::int32_t> m_currentResolution = {};
 		glm::vec<2, std::int32_t> m_nextResolution = {};
-		Core::EventBus<Sdl::Event::WindowResize>::BusHandle m_handle = {};
+		Pipeline::EventBus<Sdl::Event::WindowResize>::BusHandle m_handle = {};
 		bool m_dirtyResolution = false;
 	};
 }

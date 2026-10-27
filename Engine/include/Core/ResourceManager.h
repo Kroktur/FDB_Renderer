@@ -47,7 +47,7 @@ public:
 		if (m_textureMap[path] != nullptr)
 			return m_textureMap[path].get();
 		std::filesystem::path fullPath = FilePathSystem::GetAbsoluteFilePath(path);
-		texture_ptr texture = std::move(FN(path, args...));
+		texture_ptr texture = std::move(FN(fullPath, args...));
 		if (!texture)
 			 throw std::out_of_range("texture null");
 		m_textureMap[path] = std::move(texture);
@@ -65,6 +65,7 @@ inline std::map<std::filesystem::path, std::unique_ptr<TextureType>>
 ResourceManager<TextureType, TypeWrapper<ConstructArgs...>, FN>::m_textureMap =
 std::map<std::filesystem::path, std::unique_ptr<TextureType>>{};
 
-
+template<typename TextureType, typename ConstructArgs, auto FN>
+using resourceManager_t = ResourceManager<TextureType, ConstructArgs, FN>;
 
 #endif

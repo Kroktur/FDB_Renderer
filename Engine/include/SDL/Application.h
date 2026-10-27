@@ -60,14 +60,14 @@ namespace FDB::Sdl
 		static void CallBack(const Event::Quit& quit);
 		static SDL_Event m_event;
 		static bool m_init;
-		static Core::EventBus<Event::Quit>::BusHandle m_handle;
+		static Pipeline::EventBus<Event::Quit>::BusHandle m_handle;
 		static bool m_shouldQuit;
 	};
 
 	inline SDL_Event Application::m_event = {};
 	inline bool Application::m_init = false;
 	inline bool Application::m_shouldQuit = false;
-	inline  Core::EventBus<Event::Quit>::BusHandle Application::m_handle = {};
+	inline  Pipeline::EventBus<Event::Quit>::BusHandle Application::m_handle = {};
 	
 }
 

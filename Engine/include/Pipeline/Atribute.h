@@ -13,7 +13,7 @@ namespace FDB::Pipeline
 		Float4,
 		None
 	};
-	struct Data
+	struct Attribute
 	{
 		format format = format::None;
 		std::size_t offset = std::numeric_limits<std::size_t>::max();
@@ -21,14 +21,14 @@ namespace FDB::Pipeline
 	template<typename T>
 	struct is_attributes_array : std::false_type {};
 	template<std::size_t N>
-	struct is_attributes_array<std::array<FDB::Pipeline::Data, N>> : std::true_type {};
+	struct is_attributes_array<std::array<FDB::Pipeline::Attribute, N>> : std::true_type {};
 	template<typename T>
 	static constexpr bool is_attributes_array_v = is_attributes_array<T>::value;
 
 	template<typename T>
 	concept ValidVertexT = requires()
 	{
-		{ T::PosAttribute() } -> std::same_as<FDB::Pipeline::Data>;
+		{ T::PosAttribute() } -> std::same_as<FDB::Pipeline::Attribute>;
 	}&& is_attributes_array_v<decltype(T::AllAttributes())> && (T::AllAttributes().size() > 0);
 
 
@@ -38,13 +38,13 @@ namespace FDB::Pipeline
 		using value_type = T;
 		static constexpr std::size_t structSize = sizeof(value_type);
 		static constexpr auto attributes = value_type::AllAttributes();
-		static constexpr FDB::Pipeline::Data posAttribute = value_type::PosAttribute();
+		static constexpr FDB::Pipeline::Attribute posAttribute = value_type::PosAttribute();
 		static constexpr std::size_t attributesSize = attributes.size();
 
-		template<FDB::Pipeline::Data AttribV>
+		template<FDB::Pipeline::Attribute AttribV>
 		struct InfoDataFloat
 		{
-			static constexpr FDB::Pipeline::Data attrib = AttribV;
+			static constexpr FDB::Pipeline::Attribute attrib = AttribV;
 			static constexpr std::size_t offset = attrib.offset;
 			static constexpr std::int32_t n =
 				attrib.format == FDB::Pipeline::format::Float1 ? 1 :

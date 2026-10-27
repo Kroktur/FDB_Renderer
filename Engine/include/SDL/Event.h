@@ -23,28 +23,28 @@ namespace FDB::Sdl::Event
 			switch (event->type)
 			{
 			case SDL_EVENT_QUIT:
-				Core::EventBus<Quit>::Notify(Quit{});
+				Pipeline::EventBus<Quit>::Notify(Quit{});
 				break;
 			case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
-				Core::EventBus<WindowClose>::Notify(WindowClose{ event->window.windowID });
+				Pipeline::EventBus<WindowClose>::Notify(WindowClose{ event->window.windowID });
 				break;
 			case SDL_EVENT_WINDOW_RESIZED:
-				Core::EventBus<WindowResize>::Notify(WindowResize{ event->window.windowID ,{event->window.data1,event->window.data2} });
+				Pipeline::EventBus<WindowResize>::Notify(WindowResize{ event->window.windowID ,{event->window.data1,event->window.data2} });
 				break;
 			case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
-				Core::EventBus<WindowResizePixel>::Notify(WindowResizePixel{ event->window.windowID ,{event->window.data1,event->window.data2} });
+				Pipeline::EventBus<WindowResizePixel>::Notify(WindowResizePixel{ event->window.windowID ,{event->window.data1,event->window.data2} });
 				break;
 			case SDL_EVENT_WINDOW_MINIMIZED:
-				Core::EventBus<WindowMinimize>::Notify(WindowMinimize{ event->window.windowID,true });
+				Pipeline::EventBus<WindowMinimize>::Notify(WindowMinimize{ event->window.windowID,true });
 				break;
 			case SDL_EVENT_WINDOW_RESTORED:
-				Core::EventBus<WindowMinimize>::Notify(WindowMinimize{ event->window.windowID,false });
+				Pipeline::EventBus<WindowMinimize>::Notify(WindowMinimize{ event->window.windowID,false });
 				break;
 			case SDL_EVENT_WINDOW_FOCUS_GAINED:
-				Core::EventBus<WindowFocus>::Notify(WindowFocus{ event->window.windowID,true });
+				Pipeline::EventBus<WindowFocus>::Notify(WindowFocus{ event->window.windowID,true });
 				break;
 			case SDL_EVENT_WINDOW_FOCUS_LOST:
-				Core::EventBus<WindowFocus>::Notify(WindowFocus{ event->window.windowID,false });
+				Pipeline::EventBus<WindowFocus>::Notify(WindowFocus{ event->window.windowID,false });
 				break;
 			default:
 				break;

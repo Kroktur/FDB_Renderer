@@ -19,7 +19,7 @@ namespace FDB::Render
 	SDLGraphicPipeline::~SDLGraphicPipeline()
 	{
 		if (m_handle)
-			m_handle = Core::EventBus<Sdl::Event::WindowResize>::UnSubscribe(m_handle);
+			m_handle = Pipeline::EventBus<Sdl::Event::WindowResize>::UnSubscribe(m_handle);
 	}
 
 	void SDLGraphicPipeline::ClearColor(const Color::RGBA8888& color)
@@ -71,11 +71,11 @@ namespace FDB::Render
 		if (m_mode == ResolutionMode::Adaptative)
 		{
 			m_nextResolution = m_windowPtr->GetPixelSize();
-			m_handle = Core::EventBus<Sdl::Event::WindowResize>::SubScribe<SDLGraphicPipeline, &SDLGraphicPipeline::CallBack>(this);
+			m_handle = Pipeline::EventBus<Sdl::Event::WindowResize>::SubScribe<SDLGraphicPipeline, &SDLGraphicPipeline::CallBack>(this);
 		}
 		else
 		{
-			m_handle = Core::EventBus<Sdl::Event::WindowResize>::UnSubscribe(m_handle);
+			m_handle = Pipeline::EventBus<Sdl::Event::WindowResize>::UnSubscribe(m_handle);
 		}
 	}
 

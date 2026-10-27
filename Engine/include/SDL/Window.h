@@ -72,7 +72,7 @@ namespace FDB::Sdl
 		SDL_Window* GetSdlWindow();
 	private:
 		void CallBack(const Event::WindowClose& event);
-		Core::EventBus<Event::WindowClose>::BusHandle m_handle;
+		Pipeline::EventBus<Event::WindowClose>::BusHandle m_handle;
 		bool m_shouldClose;
 		SDL_Window* m_window;
 	};

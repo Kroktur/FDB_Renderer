@@ -119,15 +119,16 @@ namespace FDB::Pipeline
 			float area;
 		};
 
-		void BindVInData(vIn_data_t* _buffer)
+
+		void BindVInData(vIn_data_t _buffer)
 		{
 			m_vInBuffer = _buffer;
 		}
-		void BindVOutData(vOut_data_t* _buffer)
+		void BindVOutData(vOut_data_t _buffer)
 		{
 			m_vOutBuffer = _buffer;
 		}
-		void BindVertexData(vertex_data_t* _data)
+		void BindVertexData(vertex_data_t _data)
 		{
 			m_vertexData = _data;
 		}
@@ -138,7 +139,7 @@ namespace FDB::Pipeline
 
 			auto fragmentShader2 = [&](const fragmentInput_t& input)
 				{
-					return  fragmentShader(input, *m_vOutBuffer);
+					return  fragmentShader(input, m_vOutBuffer);
 				};
 			m_memory.clear();
 			// vertex shader 
@@ -146,11 +147,11 @@ namespace FDB::Pipeline
 			for (std::size_t i = 0; i + 2 < indexCount; i += 3)
 			{
 				VertexOutData vertexOut[3];
-				vertexOut[0].vertex = vertexShader(vBuffer[iBuffer[i]], *m_vertexData, *m_vInBuffer);
+				vertexOut[0].vertex = vertexShader(vBuffer[iBuffer[i]], m_vertexData, m_vInBuffer);
 				vertexOut[0].position = interpret_t::GetPosition(vertexOut[0].vertex);
-				vertexOut[1].vertex = vertexShader(vBuffer[iBuffer[i + 1]], *m_vertexData, *m_vInBuffer);
+				vertexOut[1].vertex = vertexShader(vBuffer[iBuffer[i + 1]],m_vertexData, m_vInBuffer);
 				vertexOut[1].position = interpret_t::GetPosition(vertexOut[1].vertex);
-				vertexOut[2].vertex = vertexShader(vBuffer[iBuffer[i + 2]], *m_vertexData, *m_vInBuffer);
+				vertexOut[2].vertex = vertexShader(vBuffer[iBuffer[i + 2]], m_vertexData, m_vInBuffer);
 				vertexOut[2].position = interpret_t::GetPosition(vertexOut[2].vertex);
 
 
@@ -198,11 +199,11 @@ namespace FDB::Pipeline
 
 			if constexpr (plane == Plane::Far)
 			{
-				return  pos.z >= 0;
+				return  pos.w - pos.z >= 0;
 			}
 			else if constexpr (plane == Plane::Near)
 			{
-				return  pos.w + pos.z >= 0;
+				return  pos.z >= 0;
 			}
 			else if constexpr (plane == Plane::Left)
 			{
@@ -232,7 +233,7 @@ namespace FDB::Pipeline
 			}
 			else if constexpr (plane == Plane::Near)
 			{
-				return  pos.w + pos.z;
+				return  pos.z;
 			}
 			else if constexpr (plane == Plane::Left)
 			{
@@ -309,9 +310,9 @@ namespace FDB::Pipeline
 			return copy;
 		}
 
-		vIn_data_t* m_vInBuffer = nullptr;
-		vOut_data_t* m_vOutBuffer = nullptr;
-		vertex_data_t* m_vertexData = nullptr;
+		vIn_data_t m_vInBuffer = {};
+		vOut_data_t m_vOutBuffer = {};
+		vertex_data_t m_vertexData = {};
 		std::vector<TriangleOutData> m_memory = {};
 
 	};

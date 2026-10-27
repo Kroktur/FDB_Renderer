@@ -15,7 +15,7 @@
 #include "GLM/detail/type_vec1.hpp"
 #include "Pipeline/Atribute.h"
 #include "Pipeline/RenderPath.h"
-#include "Pipeline/Transform.h"
+#include "Core/LoadObj.h" 
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -49,7 +49,11 @@
 #include "Pipeline/GraphicPipeline.h"
 
 	//#include "Pipeline/Buffer.h"
+#include "Core/Axis.h"
+#include "Core/Camera.h"
+#include "Core/Mesh.h"
 #include "Core/ResourceManager.h"
+#include "Core/Transform.h"
 #include "Render/GraphicPipeline.h"
 
 
@@ -109,26 +113,22 @@
 	//static float angle = (43.0f * 3.14) / 180.f;
 	static float angle =0;
 
-	using vertIn_t = Transform::Vertex;
-	using vertOut_t = Transform::Vertex;
+	using vertIn_t = FDB::Core::Vertex;
+	using vertOut_t = FDB::Core::Vertex;
 
-	using vertData_t = int;
-	using pathInData_t = int;
+	using vertData_t = glm::mat4;
+	using pathInData_t = FDB::Core::CameraData;
 	using pathOutData_t = int;
-	inline static vertOut_t VShader(const vertIn_t& input,const vertData_t&,const pathInData_t&)
+	inline static vertOut_t VShader(const vertIn_t& input,const vertData_t& data,const pathInData_t& camData)
 	{
 
-		glm::mat4 model(1.0f);
-		model = glm::rotate(
-			model, angle, glm::normalize(glm::vec3(1.f, 1.f, 0.f)));
-		glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 5.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // set the view
-		glm::mat4 projection = glm::perspectiveRH_ZO(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10000.0f); // set the projection
+		glm::mat4 model = data;
 		//glm::mat4 projection = glm::ortho(-4.0f, 4.0f, -3.0f, 3.0f,  0.1f, 10000.0f);
 		vertIn_t result = input;
 		glm::vec4 position(result.pos);
 		glm::vec4 worldPosition = model * position;
-		glm::vec4 viewPosition = view * worldPosition;
-		glm::vec4 clipPosition = projection * viewPosition;
+		glm::vec4 viewPosition = camData.view * worldPosition;
+		glm::vec4 clipPosition = camData.proj * viewPosition;
 		result.pos = clipPosition;
 		return result;
 	}
@@ -144,6 +144,8 @@
 		return std::make_unique<Texture>();
 	}
 
+
+
 	int main(int argc, char* argv[])
 	{
 		FDB::Pipeline::buffer_t<int> intBuffer({ 10,10 });
@@ -154,15 +156,26 @@
 		++data.data;
 		*(data.data + 1) = 5;
 
+		std::filesystem::path path = argv[0];
+		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path()/ "Resources");
+		std::cout << argv[0] << "\n";
 
 
-		FilePathSystem::AddFilePath(std::filesystem::path("C:/Users/arthu/Desktop/FDB_Render"));
+		auto* mesh = FDB::Core::meshLoader_t::Load("polaris.obj");
+		auto* mes2h = FDB::Core::meshLoader_t::Load("polaris.obj");
+		auto* mes23h = FDB::Core::meshLoader_t::Load("polaris.obj");
+		auto* mes3h = FDB::Core::meshLoader_t::Load("polaris.obj");
 
-		using textureLoad = ResourceManager < Texture, TypeWrapper<>, loadTexture>;
+		//auto tes2t = textureLoad::Load("README.md");
+		auto transfrom = FDB::Core::Transform();
+		auto camera = FDB::Core::Camera();
+		auto transformCam = FDB::Core::Transform();
+		transformCam.LookAtDir({ 0,0,-1 });
+		transformCam.SetPosition({ 0,0,5 });
+		camera.Update(transformCam.GetModelM());
 
-		auto test = textureLoad::Load("README.md");
-		auto tes2t = textureLoad::Load("README.md");
 
+		transfrom.SetScale({ 4,4,4 });
 
 		using renderPath_t = FDB::Pipeline::RenderPath<
 			vertIn_t,
@@ -207,85 +220,84 @@
 		int maxiteration = 0;
 		int lastiteration = 0;
 
-		std::vector<Transform::Vertex> vertexList;
-		std::vector<std::uint32_t> indices;
+		
 
-		auto addFace = [&](glm::vec4 p0,
-			glm::vec4 p1,
-			glm::vec4 p2,
-			glm::vec4 p3,
-			glm::vec4 color)
-			{
-				unsigned int base = static_cast<unsigned int>(vertexList.size());
+		//auto addFace = [&](glm::vec4 p0,
+		//	glm::vec4 p1,
+		//	glm::vec4 p2,
+		//	glm::vec4 p3,
+		//	glm::vec4 color)
+		//	{
+		//		unsigned int base = static_cast<unsigned int>(vertexList.size());
 
-				Transform::Vertex v0, v1, v2, v3;
+		//		Transform::Vertex v0, v1, v2, v3;
 
-				v0.pos = p0;
-				v1.pos = p1;
-				v2.pos = p2;
-				v3.pos = p3;
+		//		v0.pos = p0;
+		//		v1.pos = p1;
+		//		v2.pos = p2;
+		//		v3.pos = p3;
 
-				v0.color = { 1.f,0.f,0.f,1.f };
-				v1.color = { 0.f,1.f,0.f,1.f };
-				v2.color = { 0.f,0.f,1.f,1.f };
-				v3.color = { 1.f,1.f,1.f,1.f };
+		//		v0.color = { 1.f,0.f,0.f,1.f };
+		//		v1.color = { 0.f,1.f,0.f,1.f };
+		//		v2.color = { 0.f,0.f,1.f,1.f };
+		//		v3.color = { 1.f,1.f,1.f,1.f };
 
-				vertexList.push_back(v0);
-				vertexList.push_back(v1);
-				vertexList.push_back(v2);
-				vertexList.push_back(v3);
+		//		vertexList.push_back(v0);
+		//		vertexList.push_back(v1);
+		//		vertexList.push_back(v2);
+		//		vertexList.push_back(v3);
 
-				// Deux triangles CCW vus de l'extérieur
-				indices.insert(indices.end(), {
-					base, base + 1, base + 2,
-					base, base + 2, base + 3
-					});
-			};
+		//		// Deux triangles CCW vus de l'extérieur
+		//		indices.insert(indices.end(), {
+		//			base, base + 1, base + 2,
+		//			base, base + 2, base + 3
+		//			});
+		//	};
 
-		auto P = [](float x, float y, float z) {
-			return glm::vec4(x, y, z, 1.f);
-			};
+		//auto P = [](float x, float y, float z) {
+		//	return glm::vec4(x, y, z, 1.f);
+		//	};
 
-		// Face arrière : rouge
-		addFace(P(-1, -1, -1), P(-1, 1, -1),
-			P(1, 1, -1), P(1, -1, -1),
-			{ 1.f, 0.f, 0.f, 1.f });
+		//// Face arrière : rouge
+		//addFace(P(-1, -1, -1), P(-1, 1, -1),
+		//	P(1, 1, -1), P(1, -1, -1),
+		//	{ 1.f, 0.f, 0.f, 1.f });
 
-		// Face avant : vert
-		addFace(P(-1, -1, 1), P(1, -1, 1),
-			P(1, 1, 1), P(-1, 1, 1),
-			{ 0.f, 1.f, 0.f, 1.f });
+		//// Face avant : vert
+		//addFace(P(-1, -1, 1), P(1, -1, 1),
+		//	P(1, 1, 1), P(-1, 1, 1),
+		//	{ 0.f, 1.f, 0.f, 1.f });
 
-		// Face gauche : bleu
-		addFace(P(-1, -1, -1), P(-1, -1, 1),
-			P(-1, 1, 1), P(-1, 1, -1),
-			{ 0.f, 0.f, 1.f, 1.f });
+		//// Face gauche : bleu
+		//addFace(P(-1, -1, -1), P(-1, -1, 1),
+		//	P(-1, 1, 1), P(-1, 1, -1),
+		//	{ 0.f, 0.f, 1.f, 1.f });
 
-		// Face droite : jaune
-		addFace(P(1, -1, -1), P(1, 1, -1),
-			P(1, 1, 1), P(1, -1, 1),
-			{ 1.f, 1.f, 0.f, 1.f });
+		//// Face droite : jaune
+		//addFace(P(1, -1, -1), P(1, 1, -1),
+		//	P(1, 1, 1), P(1, -1, 1),
+		//	{ 1.f, 1.f, 0.f, 1.f });
 
-		// Face du bas : magenta
-		// Face du bas (-Y) : normale vers le bas
-		addFace(
-			P(-1, -1, -1),
-			P(1, -1, -1),
-			P(1, -1, 1),
-			P(-1, -1, 1),
-			{ 0.f, 1.f, 1.f, 1.f }
-		);
+		//// Face du bas : magenta
+		//// Face du bas (-Y) : normale vers le bas
+		//addFace(
+		//	P(-1, -1, -1),
+		//	P(1, -1, -1),
+		//	P(1, -1, 1),
+		//	P(-1, -1, 1),
+		//	{ 0.f, 1.f, 1.f, 1.f }
+		//);
 
-		// Face du haut (+Y) : normale vers le haut
-		addFace(
-			P(-1, 1, 1),
-			P(1, 1, 1),
-			P(1, 1, -1),
-			P(-1, 1, -1),
-			{ 0.f, 1.f, 1.f, 1.f }
-		);
-
-
+		//// Face du haut (+Y) : normale vers le haut
+		//addFace(
+		//	P(-1, 1, 1),
+		//	P(1, 1, 1),
+		//	P(1, 1, -1),
+		//	P(-1, 1, -1),
+		//	{ 0.f, 1.f, 1.f, 1.f }
+		//);
+		KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
+		//timer.Resume();
 		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
 		{
 			FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
@@ -313,20 +325,34 @@
 
 			Grenderer.ClearColor(FDB::Color::black8);
 			Grenderer.BeginRender();
+			pipeline.BindVInData(camera.GetData());
+
+
+			transfrom.Rotate(0.001f, FDB::Core::Axis::up);
+			transfrom.Rotate(0.001f, FDB::Core::Axis::forward);
+			transfrom.Rotate(0.001f, FDB::Core::Axis::right);
+
+			//pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
 
 
 
+			//auto startP = std::chrono::high_resolution_clock::now();
+			//auto actual = timer.GetTime();
 
-			angle += 0.001f;
-			KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
-			timer.Resume();
-			auto actual = KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(timer.GetTime());
+			auto subs = mesh->subMeshes;
+			pipeline.BindVertexData(transfrom.GetModelM());
+			
+			for(auto& sub : subs)
+				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+			/*auto now = timer.GetTime();
+				std::cout << KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(now - actual).count() << "\n";*/
 
-			pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+			//auto endP = std::chrono::high_resolution_clock::now();
 
-			auto now = KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(timer.GetTime());
+			//auto result = endP - startP;
 
-			std::cout << (now - actual).count() << "\n";
+		  //std::cout << result.count() << " \n";
+
 			Grenderer.PresentRender();
 		}
 		FDB::Sdl::Application::Destroy();

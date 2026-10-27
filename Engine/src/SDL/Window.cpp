@@ -7,7 +7,7 @@ namespace FDB::Sdl
 	Window::Window(const char* title, glm::vec<2, std::uint32_t> size, SDL_WindowFlags flags) : m_window(nullptr), m_shouldClose(false)
 	{
 		m_window = SDL_CreateWindow(title, static_cast<int>(size.x), static_cast<int>(size.y), flags);
-		m_handle = Core::EventBus<Event::WindowClose>::SubScribe<Window,&Window::CallBack>(this);
+		m_handle = Pipeline::EventBus<Event::WindowClose>::SubScribe<Window,&Window::CallBack>(this);
 	}
 
 
@@ -16,8 +16,8 @@ namespace FDB::Sdl
 	{
 		other.m_window = nullptr;
 		other.m_shouldClose = false;
-		m_handle = Core::EventBus<Event::WindowClose>::SubScribe<Window,&Window::CallBack>(this);
-		Core::EventBus<Event::WindowClose>::UnSubscribe(other.m_handle);
+		m_handle = Pipeline::EventBus<Event::WindowClose>::SubScribe<Window,&Window::CallBack>(this);
+		Pipeline::EventBus<Event::WindowClose>::UnSubscribe(other.m_handle);
 		other.m_handle = {};
 	}
 
@@ -37,8 +37,8 @@ namespace FDB::Sdl
 		other.m_window = nullptr;
 		m_shouldClose = other.m_shouldClose;
 		other.m_shouldClose = false;
-		m_handle = Core::EventBus<Event::WindowClose>::SubScribe<Window,&Window::CallBack>(this);
-		Core::EventBus<Event::WindowClose>::UnSubscribe(other.m_handle);
+		m_handle = Pipeline::EventBus<Event::WindowClose>::SubScribe<Window,&Window::CallBack>(this);
+		Pipeline::EventBus<Event::WindowClose>::UnSubscribe(other.m_handle);
 		other.m_handle = {};
 
 		return *this;
@@ -154,7 +154,7 @@ namespace FDB::Sdl
 	{
 		if (!m_window)
 			return;
-		Core::EventBus<Event::WindowClose>::UnSubscribe(m_handle);
+		Pipeline::EventBus<Event::WindowClose>::UnSubscribe(m_handle);
 		SDL_DestroyWindow(m_window);
 		m_window = nullptr;
 	}
