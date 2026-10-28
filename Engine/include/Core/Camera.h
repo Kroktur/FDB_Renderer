@@ -36,8 +36,9 @@ namespace FDB::Core
 	{
 		glm::mat4 view;
 		glm::mat4 proj;
-		glm::mat4 invView;
+		glm::mat4 invView = glm::mat4(1.f);
 	};
+	using cameraDat_t = CameraData;
 
 	struct Camera
 	{
@@ -76,18 +77,15 @@ namespace FDB::Core
 		[[nodiscard]] cameraType_t GetType() const;
 
 		[[nodiscard]] CameraData GetData();
-
 	private:
+		void PrivUpdate();
 		perspectiveSetting_t m_perspSetting = {};
 		orthographicSetting_t m_orthoSetting= {};
 		globalSetting_t m_globSetting = {};
 		cameraType_t m_type = cameraType_t::Perspective;
-		glm::mat4 m_proj = {};
 		bool m_projDirty = true;
-
-		glm::mat4 m_model = glm::mat4(1.f);
-		glm::mat4 m_view = {};
 		bool m_viewDirty = true;
+		cameraDat_t m_data ={};
 	};
 }
 

@@ -22,9 +22,9 @@ namespace FDB::Core
 
 	void Camera::Update(const glm::mat4& model)
 	{
-		if (m_model != model)
+		if (m_data.invView != model)
 		{
-			m_model = model;
+			m_data.invView = model;
 			m_viewDirty = true;
 		}
 	}
@@ -70,30 +70,30 @@ namespace FDB::Core
 		{
 			if (m_type == cameraType_t::Perspective)
 			{
-				m_proj = glm::perspectiveRH_ZO(m_perspSetting.fov, m_perspSetting.aspectRatio, m_globSetting.nearPlane, m_globSetting.farPlane);
+				m_data.proj = glm::perspectiveRH_ZO(m_perspSetting.fov, m_perspSetting.aspectRatio, m_globSetting.nearPlane, m_globSetting.farPlane);
 			}
 			else
 			{
-				m_proj = glm::orthoRH_ZO(m_orthoSetting.left,m_orthoSetting.right,m_orthoSetting.bottom,m_orthoSetting.top,m_globSetting.nearPlane,m_globSetting.farPlane);
+				m_data.proj = glm::orthoRH_ZO(m_orthoSetting.left,m_orthoSetting.right,m_orthoSetting.bottom,m_orthoSetting.top,m_globSetting.nearPlane,m_globSetting.farPlane);
 			}
 			m_projDirty = false;
 		}
-		return m_proj;
+		return m_data.proj;
 	}
 
 	glm::mat4 Camera::GetViewM()
 	{
 		if (m_viewDirty)
 		{
-			m_view = glm::inverse(m_model);
+			m_data.view = glm::inverse(m_data.invView);
 			m_viewDirty = false;
 		}
-		return m_view;
+		return m_data.view;
 	}
 
 	glm::mat4 Camera::GetModelM() const
 	{
-		return m_model;
+		return m_data.invView;
 	}
 
 	cameraType_t Camera::GetType() const
@@ -103,7 +103,29 @@ namespace FDB::Core
 
 	CameraData Camera::GetData()
 	{
-		return { this->GetViewM(),this->GetProjM(),this->GetModelM() };
+		this->PrivUpdate();
+		return m_data;
+	}
+
+	void Camera::PrivUpdate()
+	{
+		if (m_viewDirty)
+		{
+			m_data.view = glm::inverse(m_data.invView);
+			m_viewDirty = false;
+		}
+		if (m_projDirty)
+		{
+			if (m_type == cameraType_t::Perspective)
+			{
+				m_data.proj = glm::perspectiveRH_ZO(m_perspSetting.fov, m_perspSetting.aspectRatio, m_globSetting.nearPlane, m_globSetting.farPlane);
+			}
+			else
+			{
+				m_data.proj = glm::orthoRH_ZO(m_orthoSetting.left, m_orthoSetting.right, m_orthoSetting.bottom, m_orthoSetting.top, m_globSetting.nearPlane, m_globSetting.farPlane);
+			}
+			m_projDirty = false;
+		}
 	}
 
 	void Camera::SetType(cameraType_t type)

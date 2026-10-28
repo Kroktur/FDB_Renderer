@@ -2,6 +2,9 @@
 
 #include <filesystem>
 #include <stdexcept>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/quaternion.hpp>
+
 #include "Core/LoadObj.h"
 namespace FDB::Core
 {
@@ -27,6 +30,81 @@ namespace FDB::Core
         }
     };
 
+    struct TangentData
+    {
+        glm::vec3 tangent = glm::vec3(0.f);
+        glm::vec3 bitangent = glm::vec3(0.f);
+    };
+
+    void ComputeTangent(Mesh& m)
+    {
+        for (auto& sub : m.subMeshes)
+        {
+            std::vector<TangentData> tangents;
+            tangents.resize(sub.vertices.size());
+            for (std::size_t i = 0; i < sub.indices.size(); i += 3)
+            {
+                std::size_t i0 = sub.indices[i + 0];
+                std::size_t i1 = sub.indices[i + 1];
+                std::size_t i2 = sub.indices[i + 2];
+
+                glm::vec3 pos0 = sub.vertices[i0].pos;
+                glm::vec3 pos1 = sub.vertices[i1].pos;
+                glm::vec3 pos2 = sub.vertices[i2].pos;
+
+
+                glm::vec2 uv0 = sub.vertices[i0].uv;
+                glm::vec2 uv1 = sub.vertices[i1].uv;
+                glm::vec2 uv2 = sub.vertices[i2].uv;
+
+
+                glm::vec2 duv1 = uv1 - uv0;
+                glm::vec2 duv2 = uv2 - uv0;
+
+                glm::vec3 dpos1 = pos1 - pos0;
+                glm::vec3 dpos2 = pos2 - pos0;
+
+                float det = duv1.x * duv2.y - duv1.y * duv2.x;
+                if (std::abs(det) < 1e-8f)
+                    continue;
+
+                float invDet = 1.f / det;
+                glm::vec3 t = glm::vec3((dpos1 * duv2.y - dpos2 * duv1.y) * invDet);
+                glm::vec3 b = glm::vec3((dpos2 * duv1.x - dpos1 * duv2.x) * invDet);
+
+
+                tangents[i0].tangent += t;
+                tangents[i1].tangent += t;
+                tangents[i2].tangent += t;
+
+                tangents[i0].bitangent += b;
+                tangents[i1].bitangent += b;
+                tangents[i2].bitangent += b;
+
+            }
+            for (std::size_t i = 0; i < sub.vertices.size(); ++i)
+            {
+                glm::vec3 t = tangents[i].tangent;
+                glm::vec3 b = tangents[i].bitangent;
+                glm::vec3 n = sub.vertices[i].normal;
+
+                t = t - n * glm::dot(n, t);
+
+                if (glm::length2(t) < 0.001f)
+                {
+                    if (glm::abs(n.x) < 0.9f)
+                        t = glm::normalize(glm::cross(n, glm::vec3(1.0f, 0.0f, 0.0f)));
+                    else
+                        t = glm::normalize(glm::cross(n, glm::vec3(0.0f, 1.0f, 0.0f)));
+                }
+                t = glm::normalize(t);
+                sub.vertices[i].tangent = t;
+                float handedness = glm::dot(glm::cross(t, b), n) > 0.f ? 1.f : -1.f;
+                sub.vertices[i].bitangent = glm::cross(n, t) * handedness;
+            }
+
+        }
+    }
 
 	std::unique_ptr<Mesh> MeshTools::LoadMesh(const std::filesystem::path& ObjFile)
 	{
@@ -90,6 +168,11 @@ namespace FDB::Core
             }
             Mesh->subMeshes.push_back(SubMesh);
         }
+        ComputeTangent(*Mesh.get());
         return Mesh;
 	}
+
+
+
+   
 }

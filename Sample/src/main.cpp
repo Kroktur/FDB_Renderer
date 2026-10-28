@@ -51,6 +51,7 @@
 	//#include "Pipeline/Buffer.h"
 #include "Core/Axis.h"
 #include "Core/Camera.h"
+#include "Core/Light.h"
 #include "Core/Mesh.h"
 #include "Core/ResourceManager.h"
 #include "Core/Transform.h"
@@ -107,35 +108,115 @@
 	
 #include "KTR/Tools/KTR_Chrono.h"
 
-	
+	struct VertexOut
+	{
+		glm::vec4 pos ;
+		glm::vec3 normal;
+		glm::vec3 worldSpacePosition;
+		glm::vec3 eyePos;
+		glm::vec2 fragTexCoord;
+		glm::vec4 fragColor;
+		glm::vec3 tangent;
+		glm::vec3 bitangent;
+
+		[[nodiscard]] static  constexpr  FDB::Pipeline::Attribute PosAttribute()
+		{
+			return FDB::Pipeline::Attribute{ FDB::Pipeline::format::Float4,offsetof(VertexOut, pos) };
+		}
+		[[nodiscard]] static constexpr  std::array<FDB::Pipeline::Attribute, 8> AllAttributes()
+		{
+			return { FDB::Pipeline::Attribute{FDB::Pipeline::format::Float4,offsetof(VertexOut, pos)},
+				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, normal)},
+				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, worldSpacePosition)},
+				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, eyePos)},
+				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float2,offsetof(VertexOut, fragTexCoord)},
+				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float4,offsetof(VertexOut, fragColor)},
+				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, tangent)},
+				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, bitangent)}
+			};
+		}
+
+	};
 
 	
 	//static float angle = (43.0f * 3.14) / 180.f;
 	static float angle =0;
 
 	using vertIn_t = FDB::Core::Vertex;
-	using vertOut_t = FDB::Core::Vertex;
+	using vertOut_t = VertexOut;
 
 	using vertData_t = glm::mat4;
-	using pathInData_t = FDB::Core::CameraData;
-	using pathOutData_t = int;
+	using pathInData_t = FDB::Core::cameraDat_t;
+	using pathOutData_t = std::vector<FDB::Core::lightData_t>;
 	inline static vertOut_t VShader(const vertIn_t& input,const vertData_t& data,const pathInData_t& camData)
 	{
-
-		glm::mat4 model = data;
-		//glm::mat4 projection = glm::ortho(-4.0f, 4.0f, -3.0f, 3.0f,  0.1f, 10000.0f);
-		vertIn_t result = input;
-		glm::vec4 position(result.pos);
-		glm::vec4 worldPosition = model * position;
-		glm::vec4 viewPosition = camData.view * worldPosition;
-		glm::vec4 clipPosition = camData.proj * viewPosition;
-		result.pos = clipPosition;
+		vertOut_t result;
+		glm::vec4 wsPos = data * input.pos;
+		result.pos = camData.proj * (camData.view * wsPos);
+		result.worldSpacePosition = { wsPos.x,wsPos.y,wsPos.z };
+		glm::vec4 pos4 = camData.invView * glm::vec4(0, 0, 0, 1);
+		result.eyePos = { pos4.x,pos4.y,pos4.z };
+		result.fragTexCoord = input.uv;
+		result.fragColor = input.color;
+		result.normal = glm::normalize(data * glm::vec4(input.normal.x, input.normal.y, input.normal.z, 0.0f));
+		result.tangent= glm::normalize(data * glm::vec4(input.tangent.x, input.tangent.y, input.tangent.z, 0.0f));
+		result.bitangent = glm::normalize(data * glm::vec4(input.bitangent.x, input.bitangent.y, input.bitangent.z, 0.0f));
 		return result;
 	}
 	using fragReturn_t = FDB::Pipeline::fragment_output_t<FDB::Pipeline::FragmentState::Keep>;
 	inline static fragReturn_t FShader(const FDB::Pipeline::fragment_input_t<vertOut_t>& out,const pathOutData_t& data)
 	{
-		return fragReturn_t::Color(out.vertex.color);
+		float occlusion = 0.f;
+		float metalness = 0.f;
+		float roughness = 0.f;
+		const auto& v = out.vertex;
+		glm::vec3 normal = v.normal;
+		glm::vec4 result =glm::vec4(0.f);
+
+		glm::vec3 baseColor = v.fragColor;
+		glm::vec3 albedo = glm::pow(
+			glm::vec3(baseColor),
+			glm::vec3(2.2f)
+		);
+
+		result += glm::vec4(albedo, 1.0f)
+			* (1.0f - metalness)
+			* occlusion
+			* 0.02f;
+
+		for (std::size_t i = 0 ; i < data.size() ; ++i)
+		{
+			const FDB::Core::lightData_t& light = data[i];
+
+
+			if (light.type == FDB::Core::LightType::Point)
+			{
+				glm::vec3 lightPos = light.pos;
+				glm::vec3 lightColor = light.color;
+				glm::vec3 L = glm::normalize(lightPos - v.worldSpacePosition);
+				glm::vec3 N = normal;
+				glm::vec3 V = glm::normalize(v.eyePos - v.worldSpacePosition);
+				glm::vec3 H = glm::normalize(L + V);
+
+
+				glm::vec3 Kd = glm::mix(baseColor, glm::vec3(0.f), metalness);
+				glm::vec3 Ks = glm::mix(glm::vec3(1.0f), baseColor, metalness);
+				float Ns = 1.0f / glm::pow(roughness, 2.0f);
+				float intensity = light.intensity;
+				float r = glm::length(lightPos - v.worldSpacePosition);
+				float attenuation = (intensity / (4.0f * 3.14159265f * glm::pow(r, 2.0f)));
+				float diffuse = glm::max(glm::dot(N, L), 0.f);
+				glm::vec3 specular = Ks * glm::vec3(light.specColor) *glm::pow(glm::max(glm::dot(N,H),0.f),Ns);
+				glm::vec3 Fr = (Kd * 1.f / 3.14159265f) + glm::vec3(specular);
+				float Ej = diffuse * attenuation;
+				result += glm::vec4((Fr * Ej) * lightColor,1.f);
+			}
+			
+		}
+
+		result = glm::pow(result, glm::vec4(2.2f));
+		result.a = 1.0f;
+		return fragReturn_t::Color(result);
 	}
 
 	struct Texture{};
@@ -162,9 +243,6 @@
 
 
 		auto* mesh = FDB::Core::meshLoader_t::Load("polaris.obj");
-		auto* mes2h = FDB::Core::meshLoader_t::Load("polaris.obj");
-		auto* mes23h = FDB::Core::meshLoader_t::Load("polaris.obj");
-		auto* mes3h = FDB::Core::meshLoader_t::Load("polaris.obj");
 
 		//auto tes2t = textureLoad::Load("README.md");
 		auto transfrom = FDB::Core::Transform();
@@ -174,8 +252,13 @@
 		transformCam.SetPosition({ 0,0,5 });
 		camera.Update(transformCam.GetModelM());
 
+		std::vector<FDB::Core::lightData_t> lDatas;
+		auto light = FDB::Core::Light();
+		light.SetType(FDB::Core::LightType::Point);
+		light.SetPos({ 1,0,2});
+		light.SetIntensity(100.f);
+		lDatas.push_back(light.GetData());
 
-		transfrom.SetScale({ 4,4,4 });
 
 		using renderPath_t = FDB::Pipeline::RenderPath<
 			vertIn_t,
@@ -326,10 +409,9 @@
 			Grenderer.ClearColor(FDB::Color::black8);
 			Grenderer.BeginRender();
 			pipeline.BindVInData(camera.GetData());
-
+			pipeline.BindVOutData(lDatas);
 
 			transfrom.Rotate(0.001f, FDB::Core::Axis::up);
-			transfrom.Rotate(0.001f, FDB::Core::Axis::forward);
 			transfrom.Rotate(0.001f, FDB::Core::Axis::right);
 
 			//pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());

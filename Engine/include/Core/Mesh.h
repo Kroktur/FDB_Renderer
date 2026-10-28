@@ -17,15 +17,19 @@ namespace FDB::Core
         glm::vec3 normal;
         glm::vec2 uv;
         glm::vec<4, float> color;
+        glm::vec3 tangent;
+        glm::vec3 bitangent;
      [[nodiscard]]   static  constexpr  FDB::Pipeline::Attribute PosAttribute()
         {
             return FDB::Pipeline::Attribute{ FDB::Pipeline::format::Float4,offsetof(Vertex, pos) };
         }
-     [[nodiscard]]   static constexpr  std::array<FDB::Pipeline::Attribute, 4> AllAttributes()
+     [[nodiscard]]   static constexpr  std::array<FDB::Pipeline::Attribute, 6> AllAttributes()
         {
             return { FDB::Pipeline::Attribute{FDB::Pipeline::format::Float4,offsetof(Vertex, pos)},
                 FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(Vertex, normal)},
                 FDB::Pipeline::Attribute{FDB::Pipeline::format::Float2,offsetof(Vertex, uv)},
+                   FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(Vertex, tangent)},
+                   FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(Vertex, bitangent)},
                 FDB::Pipeline::Attribute{FDB::Pipeline::format::Float4,offsetof(Vertex, color)}
             };
         }
