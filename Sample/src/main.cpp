@@ -144,10 +144,53 @@
 
 	using vertIn_t = FDB::Core::Vertex;
 	using vertOut_t = VertexOut;
-
 	using vertData_t = glm::mat4;
 	using pathInData_t = FDB::Core::cameraDat_t;
 	using pathOutData_t = std::vector<FDB::Core::lightData_t>;
+
+	struct BRDFHelper
+	{
+		inline  static glm::vec3 F0(const glm::vec3& albedo, float metalness)
+		{
+			return glm::mix(glm::vec3(0.04f), albedo, metalness);
+		}
+
+		inline static glm::vec3 F(const glm::vec3& F0, float VDH)
+		{
+			return F0 + (glm::vec3(1.f) - F0) * std::pow(1.f - VDH, 5.0f);
+		}
+
+		inline static float D(float NDH, float alpha2)
+		{
+			float NDH2 = glm::pow(NDH, 2.0f);
+			float denom = NDH2 * (alpha2 - 1.0f) + 1.0f;
+			return alpha2 / (glm::pi<float>() * denom * denom);
+		}
+
+		inline static float G(float DOT, float k)
+		{
+			return DOT / (DOT * (1 - k) + k);
+		}
+
+		inline static glm::vec3 LambertDiffuse(const glm::vec3& albedo)
+		{
+			return albedo / glm::pi<float>();
+		}
+
+		inline static float FD90(float roughness, float VDH)
+		{
+			return  0.5f + 2.f * roughness * VDH * VDH;
+		}
+
+		inline static glm::vec3 DisneyDiffuse(const glm::vec3& albedo, float FD90, float NDL, float NDV)
+		{
+			float o1 = 1 + (FD90 - 1) * std::pow((1 - NDL), 5.0f);
+			float o2 = 1 + (FD90 - 1) * std::pow((1 - NDV), 5.0f);
+
+			return albedo / glm::pi<float>() * o1 * o2;
+		}
+	};
+
 	inline static vertOut_t VShader(const vertIn_t& input,const vertData_t& data,const pathInData_t& camData)
 	{
 		vertOut_t result;
@@ -166,57 +209,108 @@
 	using fragReturn_t = FDB::Pipeline::fragment_output_t<FDB::Pipeline::FragmentState::Keep>;
 	inline static fragReturn_t FShader(const FDB::Pipeline::fragment_input_t<vertOut_t>& out,const pathOutData_t& data)
 	{
-		float occlusion = 0.f;
-		float metalness = 0.f;
-		float roughness = 0.f;
+		static constexpr glm::vec3 ambientLight = glm::vec3(0.02f);
+		static constexpr float emissiveFactor = 3.0f;
+
 		const auto& v = out.vertex;
-		glm::vec3 normal = v.normal;
-		glm::vec4 result =glm::vec4(0.f);
 
-		glm::vec3 baseColor = v.fragColor;
-		glm::vec3 albedo = glm::pow(
-			glm::vec3(baseColor),
-			glm::vec3(2.2f)
-		);
+		// base data
+		glm::vec3 emissive = glm::vec3(0.0f);
+		float occlusion = 1.f;
+		float metalness = 0.25f;
+		float roughness = 0.75f;
+		glm::vec3 albedo = v.fragColor;
 
-		result += glm::vec4(albedo, 1.0f)
-			* (1.0f - metalness)
-			* occlusion
-			* 0.02f;
+		// load All data
+		// TODO base color sRGB
 
-		for (std::size_t i = 0 ; i < data.size() ; ++i)
+		glm::vec3 normal = glm::normalize(v.normal);
+		glm::vec3 result = albedo * (1 - metalness) * ambientLight * occlusion;
+		glm::vec3 V = glm::normalize(v.eyePos - v.worldSpacePosition);
+
+		// BRDF constant
+
+		// make sure a is not 0 to avoid divide by 0
+		const float a = std::max(roughness * roughness, 0.001f);
+		const float aSquared = a * a;
+
+		// TODO ask Charles multiple possibilities for k
+		const float k = std::pow(roughness + 1.0f, 2.0f) / 8.0f;
+		glm::vec3 F0 = BRDFHelper::F0(albedo,metalness);
+
+		// diff = mat albedo / pi
+		glm::vec3 diff = BRDFHelper::LambertDiffuse(albedo);
+
+		for (const auto& light : data)
 		{
-			const FDB::Core::lightData_t& light = data[i];
-
+			float rSquared =std::numeric_limits<float>::max();
+			glm::vec3 L = {};
 
 			if (light.type == FDB::Core::LightType::Point)
 			{
-				glm::vec3 lightPos = light.pos;
-				glm::vec3 lightColor = light.color;
-				glm::vec3 L = glm::normalize(lightPos - v.worldSpacePosition);
-				glm::vec3 N = normal;
-				glm::vec3 V = glm::normalize(v.eyePos - v.worldSpacePosition);
-				glm::vec3 H = glm::normalize(L + V);
-
-
-				glm::vec3 Kd = glm::mix(baseColor, glm::vec3(0.f), metalness);
-				glm::vec3 Ks = glm::mix(glm::vec3(1.0f), baseColor, metalness);
-				float Ns = 1.0f / glm::pow(roughness, 2.0f);
-				float intensity = light.intensity;
-				float r = glm::length(lightPos - v.worldSpacePosition);
-				float attenuation = (intensity / (4.0f * 3.14159265f * glm::pow(r, 2.0f)));
-				float diffuse = glm::max(glm::dot(N, L), 0.f);
-				glm::vec3 specular = Ks * glm::vec3(light.specColor) *glm::pow(glm::max(glm::dot(N,H),0.f),Ns);
-				glm::vec3 Fr = (Kd * 1.f / 3.14159265f) + glm::vec3(specular);
-				float Ej = diffuse * attenuation;
-				result += glm::vec4((Fr * Ej) * lightColor,1.f);
+				glm::vec3 dir = light.pos - v.worldSpacePosition;
+				rSquared = dot(dir, dir);
+				L = glm::normalize(dir);
 			}
-			
-		}
+			else if (light.type == FDB::Core::LightType::Spot)
+			{
+				glm::vec3 dir = light.pos - v.worldSpacePosition;
+				rSquared = dot(dir, dir);
+				L = glm::normalize(dir);
+			}
+			else 
+			{
+				L = glm::normalize(-light.dir);
+			}
 
-		result = glm::pow(result, glm::vec4(2.2f));
-		result.a = 1.0f;
-		return fragReturn_t::Color(result);
+			if (rSquared <= glm::epsilon<float>())
+				continue;
+
+			float NDL = std::max(glm::dot(normal, L), 0.0f);
+			float NDV = std::max(glm::dot(normal, V), 0.0f);
+
+			if (NDL <= 0.0f || NDV <= 0.0f)
+				continue;
+
+			glm::vec3 H = glm::normalize(L + V);
+			float VDH = std::max(glm::dot(V, H), 0.0f);
+			float NDH = std::max(glm::dot(normal, H), 0.0f);
+
+			glm::vec3 F = BRDFHelper::F(F0, VDH);
+			float D = BRDFHelper::D(NDH,aSquared);
+			float G = BRDFHelper::G(NDV, k) * BRDFHelper::G(NDL, k);
+
+			glm::vec3 Kd = (glm::vec3(1.f) - F) * (1.f - metalness);
+			glm::vec3 spec = (D * G * F) / (4.0f * NDV * NDL);
+			spec *= glm::vec3(light.specColor);
+
+			// disney version
+
+		/*	float FD90 = BRDFHelper::FD90(roughness, VDH);
+			diff = BRDFHelper::DisneyDiffuse(albedo, FD90, NDL, NDV);*/
+
+			float E = 0.0f;
+			if (light.type == FDB::Core::LightType::Point)
+			{
+				E = light.intensity / (4.0f * glm::pi<float>() * rSquared);
+			}
+			else if (light.type == FDB::Core::LightType::Dir)
+			{
+				 E = light.intensity;
+			}
+			else
+			{
+				float spotAngle = glm::dot(glm::normalize(-light.dir),L);
+				float cosInner = std::cos(light.openAngle);
+				float cosOuter = std::cos(light.openAngle + light.AdditionalSmooth);
+				float spotAttenuation = glm::smoothstep(cosOuter,cosInner,spotAngle);
+				float attenuation = light.intensity / (4.0f * glm::pi<float>() * rSquared);
+				E = attenuation * spotAttenuation;
+			}
+			result += (Kd * diff + spec) * glm::vec3(light.color) * NDL * E;
+		}
+		result += emissive * emissiveFactor;
+		return fragReturn_t::Color(glm::vec4(result, 1.0f));
 	}
 
 	struct Texture{};
@@ -238,14 +332,16 @@
 		*(data.data + 1) = 5;
 
 		std::filesystem::path path = argv[0];
-		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path()/ "Resources");
+		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
 		std::cout << argv[0] << "\n";
 
 
-		auto* mesh = FDB::Core::meshLoader_t::Load("polaris.obj");
+		auto* mesh = FDB::Core::meshLoader_t::Load("RSI-Arrastra.obj");
 
 		//auto tes2t = textureLoad::Load("README.md");
 		auto transfrom = FDB::Core::Transform();
+		transfrom.ScaleUp(glm::vec3{1.f/4.f});
+		transfrom.Rotate(glm::pi<float>() / 2.0f, { 1,0,0 });
 		auto camera = FDB::Core::Camera();
 		auto transformCam = FDB::Core::Transform();
 		transformCam.LookAtDir({ 0,0,-1 });
@@ -255,10 +351,21 @@
 		std::vector<FDB::Core::lightData_t> lDatas;
 		auto light = FDB::Core::Light();
 		light.SetType(FDB::Core::LightType::Point);
-		light.SetPos({ 1,0,2});
-		light.SetIntensity(100.f);
-		lDatas.push_back(light.GetData());
+		light.SetPos({ 0,0,3});
+		light.SetDir(glm::normalize(glm::vec3{-2,0,-1}));
 
+		light.SetIntensity(110.f);
+
+
+
+		auto light2 = FDB::Core::Light();
+		light2.SetType(FDB::Core::LightType::Dir);
+		light2.SetPos({ 0,0,5 });
+		light2.SetDir(glm::normalize(glm::vec3{ -2,-1,0 }));
+
+		light2.SetIntensity(5.f);
+		lDatas.push_back(light2.GetData());
+		lDatas.push_back(light.GetData());
 
 		using renderPath_t = FDB::Pipeline::RenderPath<
 			vertIn_t,
@@ -406,13 +513,12 @@
 				}
 			}
 
-			Grenderer.ClearColor(FDB::Color::black8);
+			Grenderer.ClearColor({ 173, 216, 230, 255 });
 			Grenderer.BeginRender();
 			pipeline.BindVInData(camera.GetData());
 			pipeline.BindVOutData(lDatas);
 
-			transfrom.Rotate(0.001f, FDB::Core::Axis::up);
-			transfrom.Rotate(0.001f, FDB::Core::Axis::right);
+			transfrom.Rotate(0.01f,  FDB::Core::Axis::forward);
 
 			//pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
 

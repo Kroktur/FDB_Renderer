@@ -23,9 +23,9 @@ namespace FDB::Render
 
 		void ClearColor(const Color::RGBA8888& color);
 
-		void BeginRender(const FDB::Rect<std::int32_t>& viewPort, const Color::RGBAFloat& color = Color::alphaFloat, float z = 1.f);
+		void BeginRender(const FDB::Rect<std::int32_t>& viewPort, const Color::RGBAFloat& color = Color::defaultFloat, float z = 1.f);
 
-		void BeginRender(const Color::RGBAFloat& color = Color::alphaFloat, float z = 1.f);
+		void BeginRender(const Color::RGBAFloat& color = Color::defaultFloat, float z = 1.f);
 
 		void PresentRender();
 

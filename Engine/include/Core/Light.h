@@ -21,7 +21,7 @@ namespace FDB::Core
 		// spot / point
 		glm::vec3 pos = {0,0,0};
 		// spot / dir
-		glm::vec3 dir = {1,1,1};
+		glm::vec3 dir = {0,-1,0};
 		// all
 		Color::RGBAFloat color = Color::whiteFloat;
 		// all
