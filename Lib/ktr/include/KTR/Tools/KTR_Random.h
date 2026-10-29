@@ -1,9 +1,9 @@
 #ifndef KTR_RANDOM_F
 #define KTR_RANDOM_F
-#include "KTR_congif_compiler.h"
+#include "KTR/KTR_congif_compiler.h"
 #include <cstdint>
 #include <random>
-#include "KTR_assert.h"
+#include "KTR/KTR_assert.h"
 
 namespace KTR::rd_priv
 {

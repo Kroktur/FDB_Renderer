@@ -40,6 +40,7 @@ namespace FDB::Render
 		[[nodiscard]] glm::vec<2, std::int32_t> GetResolution() const;
 
 		[[nodiscard]] Pipeline::FrameBuffer GetFrameBuffer() const;
+		FDB::Sdl::Renderer m_renderer = {};
 
 	private:
 		void PrivateBegin(const Color::RGBAFloat& color, float z);
@@ -50,7 +51,6 @@ namespace FDB::Render
 		FDB::Sdl::Window* m_windowPtr = nullptr;
 		FDB::Pipeline::GraphicsPipeline m_pipeline = {};
 		FDB::Sdl::Texture m_texture = {};
-		FDB::Sdl::Renderer m_renderer = {};
 		FDB::Rect<std::int32_t> m_viewPort = {};
 		Pipeline::FrameBuffer m_frameBuffer = {};
 

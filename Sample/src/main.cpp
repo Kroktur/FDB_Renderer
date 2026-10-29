@@ -16,6 +16,7 @@
 #include "Pipeline/Atribute.h"
 #include "Pipeline/RenderPath.h"
 #include "Core/LoadObj.h" 
+#include "Core/Relaxation.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -56,6 +57,8 @@
 #include "Core/ResourceManager.h"
 #include "Core/Transform.h"
 #include "Render/GraphicPipeline.h"
+
+#include <KTR/Tools/KTR_Random.h>
 
 
 	static constexpr std::int32_t windowWidth = 800;
@@ -487,6 +490,25 @@
 		//	{ 0.f, 1.f, 1.f, 1.f }
 		//);
 		KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
+
+		std::vector<glm::vec2> points;
+
+		KTR::Random::default_value_type seed { KTR::Random::default_seed_gen_type{}() };
+		KTR::Random::default_bit_gen_type gen(seed);
+		KTR::distrib::Distribution<float> distX(0.f, 800.f);
+		KTR::distrib::Distribution<float> distY(0.f, 600.f);
+
+		for (size_t i = 0; i < 1024; ++i)
+			points.push_back(glm::vec2{ distX(gen), distY(gen) });
+
+
+		/*std::vector<glm::vec2> points = {
+	{120,  80}, {350, 120}, {180, 240}, {600, 100},
+	{720, 200}, {400, 300}, {250, 400}, {100, 500},
+	{650, 450}, {500, 180}, {300, 200}, {330, 210},
+	{340, 205}, {520, 350}, {700, 520}, {150, 150},
+	{450, 480}, {580, 250}, {200, 350}, {750,  80}
+		};*/
 		//timer.Resume();
 		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
 		{
@@ -530,8 +552,19 @@
 			auto subs = mesh->subMeshes;
 			pipeline.BindVertexData(transfrom.GetModelM());
 			
-			for(auto& sub : subs)
-				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+			//for(auto& sub : subs)
+				//pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+			points = RelaxAlgo::relaxationAlgo(points, 800, 600);
+			
+			SDL_SetRenderDrawColor(Grenderer.m_renderer.GetSdlRenderer(), 0, 0, 0, 255);
+			SDL_RenderClear(Grenderer.m_renderer.GetSdlRenderer());
+			SDL_SetRenderDrawColor(Grenderer.m_renderer.GetSdlRenderer(), 255, 255, 255, 0);
+
+			for (const auto& point : points) {
+				SDL_RenderPoint(Grenderer.m_renderer.GetSdlRenderer(), point.x, point.y);
+			}
+
+			SDL_RenderPresent(Grenderer.m_renderer.GetSdlRenderer());
 			/*auto now = timer.GetTime();
 				std::cout << KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(now - actual).count() << "\n";*/
 
@@ -540,8 +573,7 @@
 			//auto result = endP - startP;
 
 		  //std::cout << result.count() << " \n";
-
-			Grenderer.PresentRender();
+			//Grenderer.PresentRender();
 		}
 		FDB::Sdl::Application::Destroy();
 		
