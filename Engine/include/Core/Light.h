@@ -40,29 +40,28 @@ namespace FDB::Core
 	struct Light
 	{
 	public:
-		void SetColor(const Color::RGBAFloat& color, const Color::RGBAFloat& specColor = Color::whiteFloat)
-		{
-			m_data.color = color;
-			m_data.specColor = specColor;
-		}
-		[[nodiscard]] Color::RGBAFloat GetColor() const { return m_data.color; }
-		[[nodiscard]] Color::RGBAFloat GetSpecColor() const { return m_data.specColor; }
-		void SetType(LightType type) { m_data.type = type; }
-		[[nodiscard]] LightType GetType() const { return m_data.type; }
-		void SetIntensity(float i) { m_data.intensity = i; }
-		[[nodiscard]] float GetIntensity() const { return m_data.intensity; }
-		void SetPos(const glm::vec3& pos) { m_data.pos = pos; }
-		[[nodiscard]] glm::vec3 GetPos() const { return m_data.pos; }
-		void SetDir(const glm::vec3& dir) { m_data.dir = dir; }
-		[[nodiscard]] glm::vec3 GetDir() const { return m_data.dir; }
-		void SetSpotData(float openAngle,float additionalSmooth)
-		{
-			m_data.openAngle = openAngle;
-			m_data.AdditionalSmooth = additionalSmooth;
-		}
-		[[nodiscard]] float GetOpenAngle() const { return m_data.openAngle; }
-		[[nodiscard]] float GetAdditionalSmooth() const { return m_data.AdditionalSmooth; }
-		[[nodiscard]] lightData_t GetData() const { return m_data; }
+		Light() = default;
+		Light(const Light&) = default;
+		Light(Light&&) noexcept = default;
+		Light& operator=(const Light&) = default;
+		Light& operator=(Light&&) noexcept = default;
+		~Light() = default;
+		void SetColor(const Color::RGBAFloat& color, const Color::RGBAFloat& specColor = Color::whiteFloat);
+		[[nodiscard]] Color::RGBAFloat GetColor() const;
+		[[nodiscard]] Color::RGBAFloat GetSpecColor() const;
+		void SetType(LightType type);
+		[[nodiscard]] LightType GetType() const;
+		void SetIntensity(float i);
+		[[nodiscard]] float GetIntensity() const;
+		void SetPos(const glm::vec3& pos);
+		[[nodiscard]] glm::vec3 GetPos() const;
+		void SetDir(const glm::vec3& dir);
+		[[nodiscard]] glm::vec3 GetDir() const;
+		void SetSpotData(float openAngle,float additionalSmooth);
+		[[nodiscard]] float GetOpenAngle() const;
+		[[nodiscard]] float GetAdditionalSmooth() const;
+		[[nodiscard]] lightData_t GetData() const;
+
 	private:
 		lightData_t m_data;
 	};

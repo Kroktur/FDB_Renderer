@@ -297,8 +297,10 @@ namespace FDB::Pipeline
 		[[nodiscard]] static VertexOutData Perspective(const  VertexOutData& v)
 		{
 			VertexOutData copy = v;
-			AttributePositionPipeline<vertexOut>::Perspective(copy.vertex,v.position.w);
-			copy.position = v.position / glm::vec<4, float>(v.position.w);
+			float w = v.position.w;
+			AttributePositionPipeline<vertexOut>::Perspective(copy.vertex,w);
+			copy.position = v.position / glm::vec<4, float>(w);
+			copy.position.w = w;
 			return copy;
 		}
 		[[nodiscard]] static VertexOutData Screen(const VertexOutData& v, const viewPort_t& viewPort)

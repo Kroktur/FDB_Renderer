@@ -74,9 +74,13 @@ source_group(
 #GLM
 set(GLM ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/glm)
 set(GLM_HEADER ${GLM}/include)
-#SDL2
+#TBO
 set(TINYOBJ ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/tinyobj)
 set(TINYOBJ_HEADER ${TINYOBJ}/include)
+
+#STB
+set(STBIMAGE ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/stbimage)
+set(STBIMAGE_HEADER ${STBIMAGE}/include)
 
 #KTR
 set(KTR ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/ktr)
@@ -89,6 +93,7 @@ target_include_directories(${PROJECT_NAME}
     ${SDL3_HEADER}
     ${GLM_HEADER}
     ${TINYOBJ_HEADER}
+    ${STBIMAGE_HEADER}
     ${KTR_HEADER}
     PRIVATE
   # ${MYLIB_HEADER}

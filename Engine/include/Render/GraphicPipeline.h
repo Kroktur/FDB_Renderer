@@ -41,6 +41,11 @@ namespace FDB::Render
 
 		[[nodiscard]] Pipeline::FrameBuffer GetFrameBuffer() const;
 
+
+		FDB::Sdl::Renderer* GetRenderer()
+		{
+			return &m_renderer;
+		}
 	private:
 		void PrivateBegin(const Color::RGBAFloat& color, float z);
 

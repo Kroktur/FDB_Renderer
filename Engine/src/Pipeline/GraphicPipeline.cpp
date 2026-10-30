@@ -12,7 +12,7 @@ void FDB::Pipeline::GraphicsPipeline::SetSize(const glm::vec<2, std::int32_t>& s
 
 	if (m_size == size)
 		return;
-	Resize(m_size);
+	Resize(size);
 
 }
 

@@ -6,6 +6,7 @@
 #include <GLM/vec3.hpp>
 #include <GLM/vec4.hpp>
 
+#include "Material.h"
 #include "ResourceManager.h"
 #include "Pipeline/Atribute.h"
 
@@ -17,19 +18,17 @@ namespace FDB::Core
         glm::vec3 normal;
         glm::vec2 uv;
         glm::vec<4, float> color;
-        glm::vec3 tangent;
-        glm::vec3 bitangent;
+        glm::vec4 tangent;
      [[nodiscard]]   static  constexpr  FDB::Pipeline::Attribute PosAttribute()
         {
             return FDB::Pipeline::Attribute{ FDB::Pipeline::format::Float4,offsetof(Vertex, pos) };
         }
-     [[nodiscard]]   static constexpr  std::array<FDB::Pipeline::Attribute, 6> AllAttributes()
+     [[nodiscard]]   static constexpr  std::array<FDB::Pipeline::Attribute, 5> AllAttributes()
         {
             return { FDB::Pipeline::Attribute{FDB::Pipeline::format::Float4,offsetof(Vertex, pos)},
                 FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(Vertex, normal)},
                 FDB::Pipeline::Attribute{FDB::Pipeline::format::Float2,offsetof(Vertex, uv)},
                    FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(Vertex, tangent)},
-                   FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(Vertex, bitangent)},
                 FDB::Pipeline::Attribute{FDB::Pipeline::format::Float4,offsetof(Vertex, color)}
             };
         }
@@ -44,6 +43,7 @@ namespace FDB::Core
         SubMesh& operator=(const SubMesh&) = default;
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
+        Material material;
     };
     using subMesh_t = SubMesh;
     struct Mesh
@@ -61,6 +61,7 @@ namespace FDB::Core
     struct MeshTools
     {
        [[nodiscard]] static std::unique_ptr<Mesh> LoadMesh(const std::filesystem::path& ObjFile);
+       static void ComputeTangent(Mesh& mesh);
     };
 
     using meshLoader_t = resourceManager_t< FDB::Core::Mesh, TypeWrapper<>, FDB::Core::MeshTools::LoadMesh>;
