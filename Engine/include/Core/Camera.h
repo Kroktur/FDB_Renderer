@@ -28,7 +28,7 @@ namespace FDB::Core
 	struct GlobalSetting
 	{
 		float nearPlane = 0.1f;
-		float farPlane = 1000.0f;
+		float farPlane = 100.0f;
 	};
 	using globalSetting_t = GlobalSetting;
 

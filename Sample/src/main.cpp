@@ -49,6 +49,8 @@
 #include "Pipeline/GraphicPipeline.h"
 
 	//#include "Pipeline/Buffer.h"
+#include <deque>
+
 #include "Core/Axis.h"
 #include "Core/Camera.h"
 #include "Core/Light.h"
@@ -59,17 +61,21 @@
 #include "Render/GraphicPipeline.h"
 
 #include "Core/Material.h"
+#include "Core/ThreadPool.h"
 #include "Render/PBRFragment.h"
 #include "Render/PBRShaders.h"
 #include "Render/Sample.h"
 
-	static constexpr std::int32_t windowWidth = 800;
-	static constexpr std::int32_t windowHeight = 600;
+	static constexpr std::int32_t windowWidth = 640;
+	static constexpr std::int32_t windowHeight = 360;
 
 	static constexpr std::int32_t renderWidth = 320;
 
 	static constexpr std::int32_t renderHeight = 240;
 
+
+
+	
 
 
 
@@ -115,6 +121,7 @@
 #include "KTR/Tools/KTR_Random.h"
 
 	
+#include "atomic"
 
 
 
@@ -132,10 +139,36 @@
 
 
 
+	struct Pixel
+	{
+		float z;
+		glm::vec4 color;
+	};
+
+	static_assert(std::is_trivially_copyable_v<Pixel>);
+
+	using atomicPixel_t = std::atomic<Pixel>;
+
 
 
 	int main(int argc, char* argv[])
 	{
+		//atomicPixel_t pixel;
+
+		//Pixel p = pixel.load(std::memory_order_relaxed);
+		//Pixel test;
+
+		//if (test.z > p.z)
+		//{
+		//	// process
+		//}
+		//while (test.z > p.z)
+		//{
+		//	pixel.compare_exchange_weak(p, test);
+		//}
+		
+		
+
 		FDB::Pipeline::buffer_t<int> intBuffer({ 10,10 });
 		intBuffer.Resize({ 40,40 });
 		intBuffer.Clear(0);
@@ -149,7 +182,9 @@
 		std::cout << argv[0] << "\n";
 
 		FDB::Core::Material baseMaterial;
-		baseMaterial.baseColor = FDB::Core::textureLoader_t::Load("Textures/Base/base_color_map.png");
+	
+		//baseMaterial.baseColor = FDB::Core::textureLoader_t::Load("Textures/Base/base_color_map.png");
+		baseMaterial.baseColor = FDB::Core::textureLoader_t::Load("damier.jpg");
 		baseMaterial.normalMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_normal_map.png");
 		baseMaterial.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_emissive_map.png");
 		baseMaterial.OMRMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_OMR_map.png");
@@ -162,11 +197,11 @@
 
 		auto* texture = FDB::Core::textureLoader_t::Load("image.png");
 
-		auto* mesh = FDB::Core::meshLoader_t::Load("bloc_1x1.obj");
+		auto* mesh = FDB::Core::meshLoader_t::Load("polaris.obj");
 
 		//auto tes2t = textureLoad::Load("README.md");
 		auto transfrom = FDB::Core::Transform();
-		transfrom.ScaleUp({ 2.2f,2.2f,2.2f });
+		transfrom.ScaleUp({ 2.f,2.f,2.f });
 		transfrom.Rotate(glm::pi<float>() / 2.0f, { 1,0,0 });
 		auto camera = FDB::Core::Camera();
 		auto transformCam = FDB::Core::Transform();
@@ -182,7 +217,8 @@
 		light.SetColor(FDB::Color::whiteFloat);
 		light.SetIntensity(150.f);
 
-
+		auto transfrom2 = FDB::Core::Transform();
+		transfrom2.SetPosition(glm::vec3{ 0,0,1 });
 
 		auto light2 = FDB::Core::Light();
 		light2.SetType(FDB::Core::LightType::Dir);
@@ -232,6 +268,9 @@
 		std::uint32_t frameCount = 0;
 
 		KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
+
+
+		FDB::Core::jobPool_t pool;
 		//timer.Resume();
 		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
 		{
@@ -262,14 +301,26 @@
 			pipeline.BindVInData(camera.GetData());
 			FDB::Render::fragmentShaderData outD{ material  ,lDatas};
 			pipeline.BindVOutData(outD);
-			transfrom.Rotate(0.001f,  FDB::Core::Axis::forward);
+			transfrom.Rotate(0.01f,  FDB::Core::Axis::forward);
+
+			/*transfrom.SetRotation({ glm::pi<float>() / 4.f,glm::pi<float>() / 8.f,0 });
+			transfrom.Move({ 0,0,-0.1 });*/
+
+			auto image = Grenderer.GetFrameBuffer();
 
 
 			auto subs = mesh->subMeshes;
 			pipeline.BindVertexData(transfrom.GetModelM());
-			
 			for(auto& sub : subs)
-				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(), image,pool);
+
+
+
+			pipeline.BindVertexData(transfrom2.GetModelM());
+			for (auto& sub : subs)
+				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), Grenderer.GetViewPort(), image, pool);
+
+			pool.WaitIdle();
 			Grenderer.PresentRender();
 		}
 		FDB::Sdl::Application::Destroy();

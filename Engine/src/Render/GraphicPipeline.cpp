@@ -45,6 +45,26 @@ namespace FDB::Render
 
 	void SDLGraphicPipeline::PresentRender()
 	{
+		auto* aCBuffer = m_frameBuffer.atomicBuffer.data;
+		auto* cBuffer = m_frameBuffer.colorBuffer.data;
+		for (std::int32_t y= 0 ; y < m_frameBuffer.atomicBuffer.size.y ; ++y)
+		{
+			for (std::int32_t x = 0 ; x < m_frameBuffer.atomicBuffer.size.x ; ++x)
+			{
+				Pipeline::Pixel pixel = aCBuffer->load(std::memory_order_acquire);
+				pixel.color *= 255.f;
+				const std::uint32_t r = static_cast<std::uint32_t>(pixel.color.r);
+				const std::uint32_t g = static_cast<std::uint32_t>(pixel.color.g);
+				const std::uint32_t b = static_cast<std::uint32_t>(pixel.color.b);
+				const std::uint32_t a = static_cast<std::uint32_t>(pixel.color.a);
+				*cBuffer = r | (g << 8) | (b << 16) | (a << 24);
+
+
+				
+				++aCBuffer;
+				++cBuffer;
+			}
+		}
 		m_texture.Update(m_frameBuffer.colorBuffer.data, m_currentResolution.x * static_cast<int>(sizeof(std::uint32_t)));
 		m_renderer.RenderTexture(m_texture);
 		m_renderer.Present();

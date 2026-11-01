@@ -43,11 +43,12 @@ namespace FDB::Render
 			 static constexpr glm::vec3 ambientLight = glm::vec3(0.02f);
 
 			 const auto& v = out.vertex;
-
-			 glm::vec4 baseMap = FDB::Render::Sample::Execute(data.mat.baseColor, v.fragTexCord);
-			 glm::vec3 OMRMap = FDB::Render::Sample::Execute(data.mat.OMRMap, v.fragTexCord);
-			 glm::vec3 normalMap = FDB::Render::Sample::Execute(data.mat.normalMap, v.fragTexCord) * 2.0f - glm::vec4(1.0f);
-			 glm::vec3 emissiveMap = glm::pow(glm::vec3(FDB::Render::Sample::Execute(data.mat.emissiveMap, v.fragTexCord)), glm::vec3(2.2f));
+			 glm::vec2 dUvX = out.vertexDx.fragTexCord, dUvY = out.vertexDy.fragTexCord;
+			 
+			 glm::vec4 baseMap = FDB::Render::Sample::Execute(data.mat.baseColor, v.fragTexCord,dUvX,dUvY);
+			 glm::vec3 OMRMap = FDB::Render::Sample::Execute(data.mat.OMRMap, v.fragTexCord, dUvX, dUvY);
+			 glm::vec3 normalMap = FDB::Render::Sample::Execute(data.mat.normalMap, v.fragTexCord, dUvX, dUvY) * 2.0f - glm::vec4(1.0f);
+			 glm::vec3 emissiveMap = glm::pow(glm::vec3(FDB::Render::Sample::Execute(data.mat.emissiveMap, v.fragTexCord, dUvX, dUvY)), glm::vec3(2.2f));
 			 float emissiveFactor = data.mat.emissiveFactor;
 
 			 float occlusion = OMRMap.r;
@@ -153,6 +154,8 @@ namespace FDB::Render
 			 result += emissiveMap * emissiveFactor;
 			 result = result / (result + glm::vec3(1.f));
 			 result = glm::pow(result, glm::vec3(1.f / 2.2f));
+			 glm::vec2 uv = glm::max(out.vertexDx.fragTexCord, out.vertexDy.fragTexCord);
+			// return FragmentShaderR_t::Color(glm::vec4{ uv * glm::vec2(data.mat.baseColor->mipLevels[0].size),0,1 });
 			 return FragmentShaderR_t::Color(glm::vec4(result, 1.0f));
 		 }
 	};

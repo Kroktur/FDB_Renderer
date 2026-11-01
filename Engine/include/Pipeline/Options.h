@@ -87,9 +87,10 @@ namespace FDB::Pipeline
 		float zDx;
 		float zDy;
 	
-		float invW;
-		float invWDx;
-		float invWDy;
+		float w;
+		float wDx;
+		float wDy;
+
 	};
 	template<ValidVertexT VertexT>
 	using fragment_input_t = FragmentInput<VertexT>;

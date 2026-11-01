@@ -4,6 +4,7 @@
 #include "Options.h"
 #include "Rasterizer.h"
 #include "Core/Rect.h"
+#include "Core/ThreadPool.h"
 
 namespace FDB::Pipeline
 {
@@ -133,44 +134,56 @@ namespace FDB::Pipeline
 			m_vertexData = _data;
 		}
 
-		void Draw(vertex_buffer_t vBuffer, index_buffer_t iBuffer, std::size_t indexCount,const viewPort_t& viewPort, const FrameBuffer& imageData)
+		void Draw(vertex_buffer_t vBuffer, index_buffer_t iBuffer, std::size_t indexCount,const viewPort_t& viewPort, const FrameBuffer& imageData,Core::jobPool_t& pool)
 		{
 			using fragmentInput_t = FDB::Pipeline::FragmentInput<vertexOut>;
 
-			auto fragmentShader2 = [&](const fragmentInput_t& input)
+			auto copy = m_vOutBuffer;
+			auto fragmentShader2 = [copy](const fragmentInput_t& input)
 				{
-					return  fragmentShader(input, m_vOutBuffer);
+					return  fragmentShader(input, copy);
 				};
-			m_memory.clear();
-			// vertex shader 
 
 			for (std::size_t i = 0; i + 2 < indexCount; i += 3)
 			{
-				VertexOutData vertexOut[3];
-				vertexOut[0].vertex = vertexShader(vBuffer[iBuffer[i]], m_vertexData, m_vInBuffer);
-				vertexOut[0].position = interpret_t::GetPosition(vertexOut[0].vertex);
-				vertexOut[1].vertex = vertexShader(vBuffer[iBuffer[i + 1]],m_vertexData, m_vInBuffer);
-				vertexOut[1].position = interpret_t::GetPosition(vertexOut[1].vertex);
-				vertexOut[2].vertex = vertexShader(vBuffer[iBuffer[i + 2]], m_vertexData, m_vInBuffer);
-				vertexOut[2].position = interpret_t::GetPosition(vertexOut[2].vertex);
+				
 
+				auto copyVertex = m_vertexData;
+				auto copyInBuffer = m_vInBuffer;
 
-				std::vector<VertexOutData> poly = RenderPath::Clip(vertexOut[0], vertexOut[1], vertexOut[2]);
-				for (std::size_t i = 1; i + 1 < poly.size(); ++i) {
-					// swap because y inverse
-					VertexOutData a = RenderPath::Screen(RenderPath::Perspective(poly[0]), viewPort);
-					VertexOutData b = RenderPath::Screen(RenderPath::Perspective(poly[i]), viewPort);
-					VertexOutData c = RenderPath::Screen(RenderPath::Perspective(poly[i + 1]), viewPort);
+				vertex vA = vBuffer[iBuffer[i]];
+				vertex vB = vBuffer[iBuffer[i + 1]];
+				vertex vC = vBuffer[iBuffer[i + 2]];
+				/*pool.PushJob([fragmentShader2,i,vA,vB,vC,copyVertex,copyInBuffer,viewPort,&imageData,&pool]()
+					{*/
+					
+						VertexOutData vertexOut[3];
+						vertexOut[0].vertex = vertexShader(vA, copyVertex, copyInBuffer);
+						vertexOut[0].position = interpret_t::GetPosition(vertexOut[0].vertex);
+						vertexOut[1].vertex = vertexShader(vB, copyVertex, copyInBuffer);
+						vertexOut[1].position = interpret_t::GetPosition(vertexOut[1].vertex);
+						vertexOut[2].vertex = vertexShader(vC, copyVertex, copyInBuffer);
+						vertexOut[2].position = interpret_t::GetPosition(vertexOut[2].vertex);
+						std::vector<VertexOutData> poly = RenderPath::Clip(vertexOut[0], vertexOut[1], vertexOut[2]);
+						for (std::size_t j = 1; j + 1 < poly.size(); ++j) {
+							VertexOutData a = RenderPath::Screen(RenderPath::Perspective(poly[0]), viewPort);
+							VertexOutData b = RenderPath::Screen(RenderPath::Perspective(poly[j]), viewPort);
+							VertexOutData c = RenderPath::Screen(RenderPath::Perspective(poly[j + 1]), viewPort);
+							/*pool.PushJob([a,b,c,fragmentShader2,viewPort,&imageData,&pool]()mutable 
+							{*/
+									auto result = cullType::ValidArea(std::array<glm::vec<4, float>, 3>{ a.position, b.position, c.position });
+									if (!result.valid)
+										continue;
+									if (result.needSwap)
+									{
+										std::swap(b.position, c.position);
+									}
+									rasterizer_t::template Compute< cullType, blendT, DepthT, writeT>({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, fragmentShader2,pool);
+							/*});*/
 
-					auto result = cullType::ValidArea(std::array<glm::vec<4, float>, 3>{ a.position, b.position, c.position });
-					if (!result.valid)
-						continue;
-					if (result.needSwap)
-					{
-						std::swap(b.position, c.position);
-					}
-					rasterizer_t::template Compute< cullType, blendT, DepthT, writeT>({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, fragmentShader2);
-				}
+							
+						}
+					/*});*/
 			}
 		}
 
@@ -315,7 +328,6 @@ namespace FDB::Pipeline
 		vIn_data_t m_vInBuffer = {};
 		vOut_data_t m_vOutBuffer = {};
 		vertex_data_t m_vertexData = {};
-		std::vector<TriangleOutData> m_memory = {};
 
 	};
 

@@ -26,39 +26,160 @@ namespace FDB::Pipeline
 		using value_type = T;
 		using buffer_view_t = buffer_view_t<T>;
 		Buffer() = default;
-		Buffer(const glm::vec<2, std::int32_t>& size): m_size(size)
+		Buffer(const glm::vec<2, std::int32_t>& size): m_size(size),m_dataSize(0)
 		{
 			this->Resize(m_size);
 		}
 		Buffer(const Buffer&) = delete;
-		Buffer(Buffer&&) noexcept = default;
+		Buffer(Buffer&& other) noexcept
+			: m_data(other.m_data),
+			m_dataSize(other.m_dataSize),
+			m_size(other.m_size)
+		{
+			other.m_data = nullptr;
+			other.m_dataSize = 0;
+			other.m_size = { 0,0 };
+		}
 		Buffer& operator=(const Buffer&) = delete;
-		Buffer& operator=(Buffer&&) noexcept = default;
-		~Buffer() = default;
+		Buffer& operator=(Buffer&& other) noexcept
+		{
+			if (this != &other)
+			{
+				delete[] m_data;
+
+				m_data =other.m_data;
+				other.m_data = nullptr;
+
+				m_dataSize = other.m_dataSize;
+				other.m_dataSize = 0;
+				m_size = other.m_size;
+				other.m_size = { 0,0 };
+			}
+
+			return *this;
+		}
+		~Buffer()
+		{
+			if (m_data)
+				delete[] m_data;
+			m_data = nullptr;
+		}
 	public:
 		buffer_view_t GetView()
 		{
-			return buffer_view_t{ m_data.data(),m_size };
+			return buffer_view_t{ m_data,m_size };
 		}
 		void Clear(value_type val)
 		{
-			std::fill(m_data.begin(), m_data.end(), val);
+			std::fill(m_data, m_data + m_dataSize, val);
 		}
 		void Resize(const glm::vec<2, std::int32_t>& size)
 		{
+			std::size_t oldSize = m_dataSize;
 			m_size = size;
-			m_data.resize(size.x * size.y);
+			m_dataSize = m_size.x * m_size.y;
+			value_type* newPtr = new value_type[m_dataSize];
+			for (std::size_t i = 0; i < std::min(oldSize, m_dataSize); ++i)
+				newPtr[i] = m_data[i];
+
+			if (m_data)
+				delete[] m_data;
+			m_data = std::move(newPtr);
 		}
 		[[nodiscard]] operator bool() const
 		{
-			return m_data.size() != 0;
+			return m_dataSize != 0;
 		}
 		[[nodiscard]] glm::vec<2, std::int32_t> GetSize() const 
 		{
 			return m_size;
 		}
 	private:
-		std::vector<value_type> m_data = {};
+		value_type* m_data = nullptr;
+		std::size_t m_dataSize = 0;
+		glm::vec<2, std::int32_t> m_size = {};
+	};
+
+
+	template<typename T>
+	struct Buffer<std::atomic<T>>
+	{
+		using value_type = T;
+		
+		using buffer_view_t = buffer_view_t<std::atomic<T>>;
+		Buffer() = default;
+		Buffer(const glm::vec<2, std::int32_t>& size) : m_size(size), m_dataSize(0)
+		{
+			this->Resize(m_size);
+		}
+		Buffer(const Buffer&) = delete;
+		Buffer(Buffer&& other) noexcept
+			: m_data(other.m_data),
+			m_dataSize(other.m_dataSize),
+			m_size(other.m_size)
+		{
+			other.m_data = nullptr;
+			other.m_dataSize = 0;
+			other.m_size = { 0,0 };
+		}
+		Buffer& operator=(const Buffer&) = delete;
+		Buffer& operator=(Buffer&& other) noexcept
+		{
+			if (this != &other)
+			{
+				delete[] m_data;
+
+				m_data = other.m_data;
+				other.m_data = nullptr;
+
+				m_dataSize = other.m_dataSize;
+				other.m_dataSize = 0;
+				m_size = other.m_size;
+				other.m_size = { 0,0 };
+			}
+
+			return *this;
+		}
+		~Buffer()
+		{
+			if (m_data)
+				delete[] m_data;
+			m_data = nullptr;
+		}
+	public:
+		buffer_view_t GetView()
+		{
+			return buffer_view_t{ m_data,m_size };
+		}
+		void Clear(value_type val)
+		{
+			std::fill(m_data, m_data + m_dataSize, val);
+		}
+		void Resize(const glm::vec<2, std::int32_t>& size)
+		{
+			std::size_t oldSize = m_dataSize;
+			m_size = size;
+			m_dataSize = m_size.x * m_size.y;
+			
+			std::atomic<value_type>* newPtr = new std::atomic<value_type>[m_dataSize];
+			for (std::size_t i = 0; i < std::min(oldSize, m_dataSize); ++i)
+				newPtr[i] = m_data[i].load(std::memory_order_acquire);
+
+			if (m_data)
+				delete[] m_data;
+			m_data = std::move(newPtr);
+		}
+		[[nodiscard]] operator bool() const
+		{
+			return m_dataSize != 0;
+		}
+		[[nodiscard]] glm::vec<2, std::int32_t> GetSize() const
+		{
+			return m_size;
+		}
+	private:
+		std::atomic<value_type>* m_data = nullptr;
+		std::size_t m_dataSize = 0;
 		glm::vec<2, std::int32_t> m_size = {};
 	};
 	template<typename T>
