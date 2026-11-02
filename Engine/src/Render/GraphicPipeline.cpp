@@ -1,5 +1,7 @@
 #include "Render/GraphicPipeline.h"
 
+#include "Core/ThreadPool.h"
+
 namespace FDB::Render
 {
 	SDLGraphicPipeline::SDLGraphicPipeline(FDB::Sdl::Window* windowPtr, const glm::vec<2, std::int32_t>& resolution):m_windowPtr(windowPtr), m_nextResolution(resolution), m_mode(ResolutionMode::Adaptative)
@@ -43,8 +45,34 @@ namespace FDB::Render
 		m_viewPort.height = m_currentResolution.y;
 	}
 
-	void SDLGraphicPipeline::PresentRender()
+	void SDLGraphicPipeline::PresentRender(Core::jobPool_t& pool)
 	{
+		static constexpr std::size_t blockSize = (64 * 64);
+		auto* aCBuffer = m_frameBuffer.atomicBuffer.data;
+		auto* cBuffer = m_frameBuffer.colorBuffer.data;
+		std::size_t totSize = m_frameBuffer.atomicBuffer.size.x * m_frameBuffer.atomicBuffer.size.y;
+
+		for (std::size_t i = 0 ; i < totSize ; i += blockSize)
+		{
+			std::size_t count = std::min(blockSize, totSize - i);
+			auto* startCaBuffer = aCBuffer + i;
+			auto* startCBuffer = cBuffer + i;
+			pool.PushJob([startCaBuffer, startCBuffer, count]()mutable {
+				for (std::size_t j = 0; j < count; ++j) {
+					Pipeline::Pixel pixel = startCaBuffer->load(std::memory_order_acquire);
+					pixel.color *= 255.f;
+					const std::uint32_t r = static_cast<std::uint32_t>(pixel.color.r);
+					const std::uint32_t g = static_cast<std::uint32_t>(pixel.color.g);
+					const std::uint32_t b = static_cast<std::uint32_t>(pixel.color.b);
+					const std::uint32_t a = static_cast<std::uint32_t>(pixel.color.a);
+					*startCBuffer = r | (g << 8) | (b << 16) | (a << 24);
+					++startCaBuffer;
+					++startCBuffer;
+				}
+			});
+
+		}
+		pool.WaitIdle();
 		m_texture.Update(m_frameBuffer.colorBuffer.data, m_currentResolution.x * static_cast<int>(sizeof(std::uint32_t)));
 		m_renderer.RenderTexture(m_texture);
 		m_renderer.Present();

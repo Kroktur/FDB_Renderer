@@ -87,9 +87,10 @@ namespace FDB::Pipeline
 		float zDx;
 		float zDy;
 	
-		float invW;
-		float invWDx;
-		float invWDy;
+		float w;
+		float wDx;
+		float wDy;
+
 	};
 	template<ValidVertexT VertexT>
 	using fragment_input_t = FragmentInput<VertexT>;
@@ -110,8 +111,8 @@ namespace FDB::Pipeline
 			FragmentState::DepthChange;
 	};
 
-	template<typename fragmentT, typename FN> requires(ValidFragmentFunction<fragmentT, FN>)
-		static constexpr FragmentState fragOutput_v = GetFragOutput<fragmentT,FN>::state;
+	template<typename fragmentT, typename FN, typename... Args> requires(ValidFragmentFunction<fragmentT, FN,Args...>)
+		static constexpr FragmentState fragOutput_v = GetFragOutput<fragmentT,FN,Args...>::state;
 	
 	enum class BlendFactor : std::uint8_t
 	{

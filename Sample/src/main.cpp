@@ -52,400 +52,402 @@
 #include "Pipeline/GraphicPipeline.h"
 
 	//#include "Pipeline/Buffer.h"
+#include <deque>
+#include <KTR/KTR_assert.h>
+
 #include "Core/Axis.h"
 #include "Core/Camera.h"
 #include "Core/Light.h"
 #include "Core/Mesh.h"
 #include "Core/ResourceManager.h"
+#include "Core/Texture.h"
 #include "Core/Transform.h"
 #include "Render/GraphicPipeline.h"
 
-#include <KTR/Tools/KTR_Random.h>
+#include "Core/Material.h"
+#include "Core/ThreadPool.h"
+#include "Render/PBRFragment.h"
+#include "Render/PBRShaders.h"
+#include "Render/Sample.h"
 
-
-	static constexpr std::int32_t windowWidth = 800;
-	static constexpr std::int32_t windowHeight = 600;
-
-	static constexpr std::int32_t renderWidth = 320;
-
-	static constexpr std::int32_t renderHeight = 240;
-
-
-
-
-
-	static constexpr size_t sizeLong = sizeof(long);
-    // TODO bouger dans un fichier a part 
-	// TODO zoption bias blend 
-	namespace test
-	{
-		
-	
-
-	inline float AtomicCompareExchange(float* ptr,float exchange,float comparand) noexcept
-	{
-		auto* p = reinterpret_cast<volatile LONG*>(ptr);
-
-		return std::bit_cast<float>(static_cast<std::uint32_t>(InterlockedCompareExchange(
-			p,
-			static_cast<LONG>(std::bit_cast<std::uint32_t>(exchange)),
-			static_cast<LONG>(std::bit_cast<std::uint32_t>(comparand))
-		)));
-	}
-	
-	class SpinLock {
-		std::atomic_flag flag = ATOMIC_FLAG_INIT;
-
-	public:
-		void lock() noexcept {
-			while (flag.test_and_set(std::memory_order_acquire)) {
-				// Spin
-			}
-		}
-		void unlock() noexcept {
-			flag.clear(std::memory_order_release);
-		}
-	};
-
-	static constexpr  auto size = sizeof(std::atomic_flag);
-}
-
-	
 #include "KTR/Tools/KTR_Chrono.h"
 
-	struct VertexOut
+	static constexpr std::int32_t windowWidth = 640;
+	static constexpr std::int32_t windowHeight = 360;
+
+	static constexpr std::int32_t renderWidth = 1920;
+	static constexpr std::int32_t renderHeight = 1080;
+
+	namespace FDB::Core
 	{
-		glm::vec4 pos ;
-		glm::vec3 normal;
-		glm::vec3 worldSpacePosition;
-		glm::vec3 eyePos;
-		glm::vec2 fragTexCoord;
-		glm::vec4 fragColor;
-		glm::vec3 tangent;
-		glm::vec3 bitangent;
-
-		[[nodiscard]] static  constexpr  FDB::Pipeline::Attribute PosAttribute()
+		struct ChangeSceneEvent
 		{
-			return FDB::Pipeline::Attribute{ FDB::Pipeline::format::Float4,offsetof(VertexOut, pos) };
-		}
-		[[nodiscard]] static constexpr  std::array<FDB::Pipeline::Attribute, 8> AllAttributes()
-		{
-			return { FDB::Pipeline::Attribute{FDB::Pipeline::format::Float4,offsetof(VertexOut, pos)},
-				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, normal)},
-				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, worldSpacePosition)},
-				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, eyePos)},
-				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float2,offsetof(VertexOut, fragTexCoord)},
-				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float4,offsetof(VertexOut, fragColor)},
-				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, tangent)},
-				FDB::Pipeline::Attribute{FDB::Pipeline::format::Float3,offsetof(VertexOut, bitangent)}
-			};
-		}
+			std::uint64_t sceneId;
+		};
 
-	};
+		struct GameLoop;
+
+		struct BasicScene
+		{
+		public:
+			friend GameLoop;
+			virtual ~BasicScene() = default;
+			virtual void HandleInput(FDB::Core::JobPool& pool)
+			{
+			}
+			virtual void Update(float dt, FDB::Core::JobPool& pool)
+			{
+				
+			}
+			virtual void Render(FDB::Core::JobPool& pool)
+			{
+				
+			}
+			virtual  Color::RGBA8888 ClearColor()
+			{
+				return  Color::alpha8;
+			}
+			[[nodiscard]] std::uint64_t GetSceneId() const
+			{
+				return m_sceneId;
+			}
+		protected:
+			virtual void InitScene()
+			{
+				
+			}
+			FDB::Render::SDLGraphicPipeline* m_renderer = nullptr;
+			FDB::Sdl::Window* m_window = nullptr;
+		private:
+			void Init(FDB::Sdl::Window* window, FDB::Render::SDLGraphicPipeline* renderer,std::uint64_t id)
+			{
+				m_renderer = renderer;
+				m_window = window;
+				m_sceneId = id;
+				InitScene();
+			}
+			std::uint64_t m_sceneId = 0;
+
+		};
+	}	
+	#include <vector>
+	namespace FDB::Core
+	{
+		struct GameLoop
+		{
+		public:
+			GameLoop(const std::string& name,const glm::uvec2& size) : m_window(name.c_str(), size, SDL_WINDOW_RESIZABLE),m_pool()
+			{
+				m_renderer = std::make_unique<FDB::Render::SDLGraphicPipeline>(&m_window, size);
+				FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
+				m_handle = FDB::Pipeline::EventBus<FDB::Core::ChangeSceneEvent>::SubScribe<GameLoop,&GameLoop::ChangeSceneEvent>(this);
+			}
+			void AddScene(std::unique_ptr<BasicScene> scene,bool main = false)
+			{
+				scene->Init(&m_window, m_renderer.get(), m_scenes.size());
+				m_scenes.push_back(std::move(scene));
+				if (main)
+				{
+					m_currentScene = m_scenes.back().get();
+					m_currentSceneId = m_scenes.size() - 1;
+				}
+			}
+			~GameLoop()
+			{
+				FDB::Pipeline::EventBus<FDB::Core::ChangeSceneEvent>::UnSubscribe(m_handle);
+				m_window.CloseWindow();
+				FDB::Sdl::Application::Destroy();
+			}
+			void Loop()
+			{
+				if (!m_currentScene)
+					return;
+
+				std::uint64_t frameCount = 0;
+				KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution,KTR::duration::milli_seconds_type<double>> fpsTimer;
+				fpsTimer.Resume();
+				auto lastFps = fpsTimer.GetTime();
+
+				KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution,KTR::duration::seconds_type<float>> timer;
+				timer.Resume();
+				auto last = timer.GetTime();
+				while (!FDB::Sdl::Application::ShouldQuit() && !m_window.ShouldClose())
+				{
+					this->ChangeScene();
+					FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
+					{
+						++frameCount;
+						auto currentFps = fpsTimer.GetTime();
+
+						auto delta = (currentFps - lastFps).count();
+						if (delta >= 1000)
+						{
+							const double fps = static_cast<double>(frameCount) * 1000.0 / delta;
+
+							std::string title = "FPS: " + std::to_string(static_cast<int>(fps));
+							m_window.SetTitle(title.c_str());
+
+							frameCount = 0;
+							lastFps = currentFps;
+						}
+					}
+
+
+					m_currentScene->HandleInput(m_pool);
+
+					auto current = timer.GetTime();
+					m_currentScene->Update((current - last).count(), m_pool);
+					last = current;
+
+					m_renderer->ClearColor(m_currentScene->ClearColor());
+					m_renderer->BeginRender();
+					m_currentScene->Render(m_pool);
+					m_renderer->PresentRender(m_pool);
+				}
+			}
+		private:
+			void ChangeSceneEvent(const FDB::Core::ChangeSceneEvent& event)
+			{
+				m_currentSceneId = event.sceneId;
+				m_sceneChanged = true;
+			}
+			void ChangeScene()
+			{
+				if (!m_currentScene)
+					return;
+				m_sceneChanged = false;
+				m_currentScene = m_scenes[m_currentSceneId].get();
+			}
+
+			std::vector<std::unique_ptr<BasicScene>> m_scenes;
+			BasicScene* m_currentScene = nullptr;
+			std::uint64_t m_currentSceneId = 0;
+			bool m_sceneChanged = false; 
+			FDB::Sdl::Window m_window;
+			FDB::Pipeline::EventBus<FDB::Core::ChangeSceneEvent>::BusHandle m_handle;
+			FDB::Core::JobPool m_pool;
+			std::unique_ptr<FDB::Render::SDLGraphicPipeline> m_renderer;
+		};
+	}
+
+
+
+
+
+	
+	
+	
+
+#include "KTR/Tools/KTR_Chrono.h"
+#include "KTR/Tools/KTR_Random.h"
+
+	
+#include "atomic"
+
+
+
+	
 
 	
 	//static float angle = (43.0f * 3.14) / 180.f;
-	static float angle =0;
-
+	
 	using vertIn_t = FDB::Core::Vertex;
-	using vertOut_t = VertexOut;
-	using vertData_t = glm::mat4;
-	using pathInData_t = FDB::Core::cameraDat_t;
-	using pathOutData_t = std::vector<FDB::Core::lightData_t>;
+	using vertOut_t = FDB::Render::PBRFragment;
+	using vertData_t = FDB::Render::PushConstant;
+	using pathInData_t = FDB::Render::vertexShaderData;
+	using pathOutData_t = FDB::Render::fragmentShaderData;
 
-	struct BRDFHelper
+
+
+
+	struct Pixel
 	{
-		inline  static glm::vec3 F0(const glm::vec3& albedo, float metalness)
-		{
-			return glm::mix(glm::vec3(0.04f), albedo, metalness);
-		}
-
-		inline static glm::vec3 F(const glm::vec3& F0, float VDH)
-		{
-			return F0 + (glm::vec3(1.f) - F0) * std::pow(1.f - VDH, 5.0f);
-		}
-
-		inline static float D(float NDH, float alpha2)
-		{
-			float NDH2 = glm::pow(NDH, 2.0f);
-			float denom = NDH2 * (alpha2 - 1.0f) + 1.0f;
-			return alpha2 / (glm::pi<float>() * denom * denom);
-		}
-
-		inline static float G(float DOT, float k)
-		{
-			return DOT / (DOT * (1 - k) + k);
-		}
-
-		inline static glm::vec3 LambertDiffuse(const glm::vec3& albedo)
-		{
-			return albedo / glm::pi<float>();
-		}
-
-		inline static float FD90(float roughness, float VDH)
-		{
-			return  0.5f + 2.f * roughness * VDH * VDH;
-		}
-
-		inline static glm::vec3 DisneyDiffuse(const glm::vec3& albedo, float FD90, float NDL, float NDV)
-		{
-			float o1 = 1 + (FD90 - 1) * std::pow((1 - NDL), 5.0f);
-			float o2 = 1 + (FD90 - 1) * std::pow((1 - NDV), 5.0f);
-
-			return albedo / glm::pi<float>() * o1 * o2;
-		}
+		float z;
+		glm::vec4 color;
 	};
 
-	inline static vertOut_t VShader(const vertIn_t& input,const vertData_t& data,const pathInData_t& camData)
+	static_assert(std::is_trivially_copyable_v<Pixel>);
+
+	using atomicPixel_t = std::atomic<Pixel>;
+
+		
+	struct SampleScene : public FDB::Core::BasicScene
 	{
-		vertOut_t result;
-		glm::vec4 wsPos = data * input.pos;
-		result.pos = camData.proj * (camData.view * wsPos);
-		result.worldSpacePosition = { wsPos.x,wsPos.y,wsPos.z };
-		glm::vec4 pos4 = camData.invView * glm::vec4(0, 0, 0, 1);
-		result.eyePos = { pos4.x,pos4.y,pos4.z };
-		result.fragTexCoord = input.uv;
-		result.fragColor = input.color;
-		result.normal = glm::normalize(data * glm::vec4(input.normal.x, input.normal.y, input.normal.z, 0.0f));
-		result.tangent= glm::normalize(data * glm::vec4(input.tangent.x, input.tangent.y, input.tangent.z, 0.0f));
-		result.bitangent = glm::normalize(data * glm::vec4(input.bitangent.x, input.bitangent.y, input.bitangent.z, 0.0f));
-		return result;
-	}
-	using fragReturn_t = FDB::Pipeline::fragment_output_t<FDB::Pipeline::FragmentState::Keep>;
-	inline static fragReturn_t FShader(const FDB::Pipeline::fragment_input_t<vertOut_t>& out,const pathOutData_t& data)
-	{
-		static constexpr glm::vec3 ambientLight = glm::vec3(0.02f);
-		static constexpr float emissiveFactor = 3.0f;
-
-		const auto& v = out.vertex;
-
-		// base data
-		glm::vec3 emissive = glm::vec3(0.0f);
-		float occlusion = 1.f;
-		float metalness = 0.25f;
-		float roughness = 0.75f;
-		glm::vec3 albedo = v.fragColor;
-
-		// load All data
-		// TODO base color sRGB
-
-		glm::vec3 normal = glm::normalize(v.normal);
-		glm::vec3 result = albedo * (1 - metalness) * ambientLight * occlusion;
-		glm::vec3 V = glm::normalize(v.eyePos - v.worldSpacePosition);
-
-		// BRDF constant
-
-		// make sure a is not 0 to avoid divide by 0
-		const float a = std::max(roughness * roughness, 0.001f);
-		const float aSquared = a * a;
-
-		// TODO ask Charles multiple possibilities for k
-		const float k = std::pow(roughness + 1.0f, 2.0f) / 8.0f;
-		glm::vec3 F0 = BRDFHelper::F0(albedo,metalness);
-
-		// diff = mat albedo / pi
-		glm::vec3 diff = BRDFHelper::LambertDiffuse(albedo);
-
-		for (const auto& light : data)
-		{
-			float rSquared =std::numeric_limits<float>::max();
-			glm::vec3 L = {};
-
-			if (light.type == FDB::Core::LightType::Point)
-			{
-				glm::vec3 dir = light.pos - v.worldSpacePosition;
-				rSquared = dot(dir, dir);
-				L = glm::normalize(dir);
-			}
-			else if (light.type == FDB::Core::LightType::Spot)
-			{
-				glm::vec3 dir = light.pos - v.worldSpacePosition;
-				rSquared = dot(dir, dir);
-				L = glm::normalize(dir);
-			}
-			else 
-			{
-				L = glm::normalize(-light.dir);
-			}
-
-			if (rSquared <= glm::epsilon<float>())
-				continue;
-
-			float NDL = std::max(glm::dot(normal, L), 0.0f);
-			float NDV = std::max(glm::dot(normal, V), 0.0f);
-
-			if (NDL <= 0.0f || NDV <= 0.0f)
-				continue;
-
-			glm::vec3 H = glm::normalize(L + V);
-			float VDH = std::max(glm::dot(V, H), 0.0f);
-			float NDH = std::max(glm::dot(normal, H), 0.0f);
-
-			glm::vec3 F = BRDFHelper::F(F0, VDH);
-			float D = BRDFHelper::D(NDH,aSquared);
-			float G = BRDFHelper::G(NDV, k) * BRDFHelper::G(NDL, k);
-
-			glm::vec3 Kd = (glm::vec3(1.f) - F) * (1.f - metalness);
-			glm::vec3 spec = (D * G * F) / (4.0f * NDV * NDL);
-			spec *= glm::vec3(light.specColor);
-
-			// disney version
-
-		/*	float FD90 = BRDFHelper::FD90(roughness, VDH);
-			diff = BRDFHelper::DisneyDiffuse(albedo, FD90, NDL, NDV);*/
-
-			float E = 0.0f;
-			if (light.type == FDB::Core::LightType::Point)
-			{
-				E = light.intensity / (4.0f * glm::pi<float>() * rSquared);
-			}
-			else if (light.type == FDB::Core::LightType::Dir)
-			{
-				 E = light.intensity;
-			}
-			else
-			{
-				float spotAngle = glm::dot(glm::normalize(-light.dir),L);
-				float cosInner = std::cos(light.openAngle);
-				float cosOuter = std::cos(light.openAngle + light.AdditionalSmooth);
-				float spotAttenuation = glm::smoothstep(cosOuter,cosInner,spotAngle);
-				float attenuation = light.intensity / (4.0f * glm::pi<float>() * rSquared);
-				E = attenuation * spotAttenuation;
-			}
-			result += (Kd * diff + spec) * glm::vec3(light.color) * NDL * E;
-		}
-		result += emissive * emissiveFactor;
-		return fragReturn_t::Color(glm::vec4(result, 1.0f));
-	}
-
-	struct Texture{};
-	std::unique_ptr<Texture> loadTexture(const std::filesystem::path& path)
-	{
-		return std::make_unique<Texture>();
-	}
-
-
-
-	int main(int argc, char* argv[])
-	{
-		FDB::Pipeline::buffer_t<int> intBuffer({ 10,10 });
-		intBuffer.Resize({ 40,40 });
-		intBuffer.Clear(0);
-
-		FDB::Pipeline::buffer_view_t<int> data = intBuffer.GetView();
-		++data.data;
-		*(data.data + 1) = 5;
-
-		std::filesystem::path path = argv[0];
-		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
-		std::cout << argv[0] << "\n";
-
-
-		auto* mesh = FDB::Core::meshLoader_t::Load("RSI-Arrastra.obj");
-
-		//auto tes2t = textureLoad::Load("README.md");
-		auto transfrom = FDB::Core::Transform();
-		transfrom.ScaleUp(glm::vec3{1.f/4.f});
-		transfrom.Rotate(glm::pi<float>() / 2.0f, { 1,0,0 });
-		auto camera = FDB::Core::Camera();
-		auto transformCam = FDB::Core::Transform();
-		transformCam.LookAtDir({ 0,0,-1 });
-		transformCam.SetPosition({ 0,0, 20});
-		camera.Update(transformCam.GetModelM());
-
-		std::vector<FDB::Core::lightData_t> lDatas;
-		auto light = FDB::Core::Light();
-		light.SetType(FDB::Core::LightType::Point);
-		light.SetPos({ 0,0,3});
-		light.SetDir(glm::normalize(glm::vec3{-2,0,-1}));
-
-		light.SetIntensity(110.f);
-
-
-
-		auto light2 = FDB::Core::Light();
-		light2.SetType(FDB::Core::LightType::Dir);
-		light2.SetPos({ 0,0,5 });
-		light2.SetDir(glm::normalize(glm::vec3{ -2,-1,0 }));
-
-		light2.SetIntensity(5.f);
-		lDatas.push_back(light2.GetData());
-		lDatas.push_back(light.GetData());
-
+	public:
 		using renderPath_t = FDB::Pipeline::RenderPath<
 			vertIn_t,
 			vertOut_t,
 			vertData_t,
 			pathInData_t,
 			pathOutData_t,
-			&VShader,
-			&FShader,
+			&FDB::Render::PBRShader::VertexShader,
+			&FDB::Render::PBRShader::FragmentShader<false>,
 			FDB::Pipeline::default_rasterizerOpt_t>;
+	protected:
+		void InitScene() override
+		{
+			m_transform = FDB::Core::Transform();
+			m_transform.ScaleUp({ 2.f,2.f,2.f });
+			m_transform.Rotate(glm::pi<float>() / 2.0f, { 1,0,0 });
+			m_camera = FDB::Core::Camera();
+			m_camTransform = FDB::Core::Transform();
+			m_camTransform.LookAtDir({ 0,0,-1 });
+			m_camTransform.SetPosition({ 0,0,5 });
+			m_camera.Update(m_camTransform.GetModelM());
 
+			m_light = FDB::Core::Light();
+			m_light.SetType(FDB::Core::LightType::Point);
+			m_light.SetPos({ 0,0,3 });
+			m_light.SetDir(glm::normalize(glm::vec3{ -2,0,-1 }));
+			m_light.SetColor(FDB::Color::whiteFloat);
+			m_light.SetIntensity(150.f);
 
-
-
-
-		renderPath_t pipeline;
-		static constexpr float value = 3.4028230e+38f;
-		static constexpr float result = 1.1754944e-38f;
-		float i = value;
-		test::AtomicCompareExchange(&i, result, value);
-	/*	if (i == result)
-			throw;*/
-
-
-		FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
-		FDB::Sdl::Window window("test", { windowWidth,windowHeight }, SDL_WINDOW_RESIZABLE);
-		//FDB::Sdl::Renderer renderer(window);
-		//renderer.SetVSync(1);
-
-		glm::vec<2, std::int32_t> size = { renderWidth,renderHeight };
-
-		//FDB::Sdl::Texture texture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, size);
-	
-		//FDB::Pipeline::GraphicsPipeline basePipeline;
-
-		FDB::Render::SDLGraphicPipeline Grenderer(&window,size);
-		Uint64 lastTime = SDL_GetTicks();
+			m_transform2 = FDB::Core::Transform();
+			m_transform2.SetPosition(glm::vec3{ 0,0,1 });
+		std::uint32_t frameCount = 0;
 		std::uint32_t frameCount = 0;
 
-		int iteration = 0;
-		int maxiteration = 0;
-		int lastiteration = 0;
+			m_light2 = FDB::Core::Light();
+			m_light2.SetType(FDB::Core::LightType::Dir);
+			m_light2.SetColor(FDB::Color::blueFloat);
+			
+			
+			//Sphere function
 
-		auto p3d = RelaxAlgo::createSphere();
+			//auto p3d = RelaxAlgo::createSphere();
 
-		std::vector<glm::vec3> unit;
-		for (auto& p : p3d) unit.push_back(glm::normalize(p));
+			//std::vector<glm::vec3> unit;
+			//for (auto& p : p3d) unit.push_back(glm::normalize(p));
 
-		auto sub = CreateSphere::TransformPointToTriangle(p3d);
-		sub = CreateSphere::applyNoise(unit, sub.indices, 20.0f, 5.0f, 5.5f);
+			//auto sub = CreateSphere::TransformPointToTriangle(p3d);
+			//sub = CreateSphere::applyNoise(unit, sub.indices, 20.0f, 5.0f, 5.5f);
+			//auto subs = mesh->subMeshes;
+			m_light2.SetPos({ 0,0,5 });
+			m_light2.SetDir(glm::normalize(glm::vec3{ -2,-1,0 }));
+
+			m_light2.SetIntensity(5.f);
+			//lDatas.push_back(light2.GetData());
+			m_lDatas.push_back(m_light.GetData());
+		
+		//	glm::vec4 p1,
+		//	glm::vec4 p2,
+			m_baseMaterials.baseColor = FDB::Core::textureLoader_t::Load("damier.jpg");
+			m_baseMaterials.normalMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_normal_map.png");
+			m_baseMaterials.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_emissive_map.png");
+			m_baseMaterials.OMRMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_OMR_map.png");
+		//	glm::vec4 p1,
+			m_material.baseColor = FDB::Core::textureLoader_t::Load("Textures/BaseColor.png");
+			m_material.normalMap = FDB::Core::textureLoader_t::Load("Textures/Normal.png");
+			m_material.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Emissive.png");
+			m_material.OMRMap = FDB::Core::textureLoader_t::Load("Textures/ORM.png");
 
 
-
-		auto meshSphere = std::make_unique<FDB::Core::Mesh>();
-		meshSphere->subMeshes.push_back(std::move(sub));
-
-		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
+			m_mesh = FDB::Core::meshLoader_t::Load("bloc_1x1.obj");
+			m_renderPath = renderPath_t();
+		}
+	public:
+		void Render(FDB::Core::JobPool& pool) override
 		{
-			FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
-			// TODO refact fps
-			{
-				++frameCount;
+			
 
-				Uint64 currentTime = SDL_GetTicks();
+			m_pipeline.BindVInData(m_camera.GetData());
+			FDB::Render::fragmentShaderData outD{ m_material  ,m_lDatas };
+			m_pipeline.BindVOutData(outD);
 
-				if (currentTime - lastTime >= 1000)
-				{
-					float fps = static_cast<float>(frameCount) * 1000.f /
-						static_cast<float>(currentTime - lastTime);
+			auto image = m_renderer->GetFrameBuffer();
 
-					std::string title = std::to_string(static_cast<int>(fps));
+		//			});
+			auto subs = m_mesh->subMeshes;
+			m_pipeline.BindVertexData(m_transform.GetModelM());
+			for (auto& sub : subs)
+				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
-					SDL_SetWindowTitle(
-						window.GetSdlWindow(),
-						title.c_str());
+			m_pipeline.BindVertexData(m_transform2.GetModelM());
+			for (auto& sub : subs)
+				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+
+			pool.WaitIdle();
+		}
+		void Update(float dt, FDB::Core::JobPool& pool) override
+		//addFace(P(-1, -1, 1), P(1, -1, 1),
+		//	P(1, 1, 1), P(-1, 1, 1),
+		//	{ 0.f, 1.f, 0.f, 1.f });
+
+		//// Face gauche : bleu
+		//addFace(P(-1, -1, -1), P(-1, -1, 1),
+		//	P(-1, 1, 1), P(-1, 1, -1),
+		//	{ 0.f, 0.f, 1.f, 1.f });
+		//			});
+		//// Face droite : jaune
+		//addFace(P(1, -1, -1), P(1, 1, -1),
+		//	P(1, 1, 1), P(1, -1, 1),
+		}
+	private:
+		
+		FDB::Core::Transform m_transform;
+		FDB::Core::Transform m_transform2;
+		FDB::Core::Transform m_camTransform;
+		FDB::Core::Camera m_camera;
+		std::vector<FDB::Core::lightData_t> m_lDatas;
+		FDB::Core::Light m_light;
+		FDB::Core::Light m_light2;
+
+		FDB::Core::Material m_baseMaterials;
+		FDB::Core::Material m_material;
+		FDB::Core::Mesh* m_mesh = nullptr;
+		renderPath_t m_pipeline;
+		renderPath_t m_renderPath;
+	};
+		//	P(1, 1, 1), P(-1, 1, 1),
+		//	{ 0.f, 1.f, 0.f, 1.f });
+	int main(int argc, char* argv[])
+	{
+		std::filesystem::path path = argv[0];
+		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
+		FDB::Core::GameLoop loop("test", { windowWidth,windowHeight });
+		loop.AddScene(std::make_unique<SampleScene>(),true);
+		loop.AddScene(std::make_unique<FDB::Core::BasicScene>(), false);
+		//// Face gauche : bleu
+		loop.Loop();
+		
+		//addFace(P(1, -1, -1), P(1, 1, -1),
+		//	P(1, 1, 1), P(1, -1, 1),
+					frameCount = 0;
+					lastTime = currentTime;
+				}
+			}
+
+			Grenderer.ClearColor({ 173, 216, 230, 255 });
+			Grenderer.BeginRender();
+			pipeline.BindVInData(camera.GetData());
+			pipeline.BindVOutData(lDatas);
+
+			transfrom.Rotate(0.01f,  FDB::Core::Axis::forward);
+
+			//pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+
+
+
+			//auto startP = std::chrono::high_resolution_clock::now();
+			//auto actual = timer.GetTime();
+
+			auto subs = mesh->subMeshes;
+			pipeline.BindVertexData(transfrom.GetModelM());
+			
+			for(auto& sub : subs)
+				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
+			/*auto now = timer.GetTime();
+				std::cout << KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(now - actual).count() << "\n";*/
+
+			pool.WaitIdle();
+			//auto result = endP - startP;
+		void Update(float dt, FDB::Core::JobPool& pool) override
+		  //std::cout << result.count() << " \n";
+
+			Grenderer.PresentRender();
+		}
+		FDB::Sdl::Application::Destroy();
+			const bool* keyboardState = SDL_GetKeyboardState(nullptr);
 
 					frameCount = 0;
 					lastTime = currentTime;
@@ -459,27 +461,34 @@
 
 			transfrom.Rotate(0.01f,  FDB::Core::Axis::forward);
 
+			//pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
 
 
 
-			auto startP = std::chrono::high_resolution_clock::now();
+			//auto startP = std::chrono::high_resolution_clock::now();
 			//auto actual = timer.GetTime();
 
 			auto subs = mesh->subMeshes;
-			auto subsSphere = meshSphere->subMeshes;
 			pipeline.BindVertexData(transfrom.GetModelM());
 			
-			for(auto& sub : subsSphere)
+			for(auto& sub : subs)
 				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
-
-
-			auto endP = std::chrono::high_resolution_clock::now();
-
-			auto result = endP - startP;
+			/*auto now = timer.GetTime();
+				std::cout << KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(now - actual).count() << "\n";*/
+		FDB::Core::Material m_material;
+		FDB::Core::Mesh* m_mesh = nullptr;
+			//auto result = endP - startP;
+		std::filesystem::path path = argv[0];
+		  //std::cout << result.count() << " \n";
 
 			Grenderer.PresentRender();
 		}
 		FDB::Sdl::Application::Destroy();
+		loop.AddScene(std::make_unique<SampleScene>(),true);
+		loop.AddScene(std::make_unique<FDB::Core::BasicScene>(), false);
+
+		loop.Loop();
+		
 		
 	}
 
