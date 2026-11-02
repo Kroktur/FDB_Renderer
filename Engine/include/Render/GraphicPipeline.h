@@ -1,5 +1,6 @@
 #ifndef FDBRENDERGRAPHICPIPELINEF
 #define FDBRENDERGRAPHICPIPELINEF
+#include "Core/ThreadPool.h"
 #include "Pipeline/GraphicPipeline.h"
 #include "SDL/Renderer.h"
 #include "SDL/Window.h"
@@ -15,6 +16,8 @@ namespace FDB::Render
 
 	struct SDLGraphicPipeline
 	{
+		SDLGraphicPipeline() = default;
+
 		SDLGraphicPipeline(FDB::Sdl::Window* windowPtr, const glm::vec<2, std::int32_t>& resolution);
 
 		SDLGraphicPipeline(FDB::Sdl::Window* windowPtr);
@@ -27,7 +30,7 @@ namespace FDB::Render
 
 		void BeginRender(const Color::RGBAFloat& color = Color::defaultFloat, float z = 1.f);
 
-		void PresentRender();
+		void PresentRender(Core::jobPool_t& pool);
 
 		void SetRenderResolution(const glm::vec<2, std::int32_t>& resolution);
 

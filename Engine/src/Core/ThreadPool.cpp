@@ -24,10 +24,10 @@ namespace FDB::Core
 		m_jobs.clear();
 	}
 
-	void JobPool::PushJob(job_t job)
+	void JobPool::PushJob(job_t&& job)
 	{
 		{
-			std::lock_guard<std::mutex> lock(m_mutex);
+			std::scoped_lock<std::mutex> lock(m_mutex);
 			++m_jobCount;
 			m_jobs.push_back(std::move(job));
 		}
@@ -56,7 +56,7 @@ namespace FDB::Core
 			}
 			task();
 			{
-				std::lock_guard<std::mutex> lock(m_mutex);
+				std::scoped_lock<std::mutex> lock(m_mutex);
 				if (--m_jobCount == 0)
 					m_idleCv.notify_all();
 			}

@@ -50,6 +50,7 @@
 
 	//#include "Pipeline/Buffer.h"
 #include <deque>
+#include <KTR/KTR_assert.h>
 
 #include "Core/Axis.h"
 #include "Core/Camera.h"
@@ -66,57 +67,174 @@
 #include "Render/PBRShaders.h"
 #include "Render/Sample.h"
 
+#include "KTR/Tools/KTR_Chrono.h"
+
 	static constexpr std::int32_t windowWidth = 640;
 	static constexpr std::int32_t windowHeight = 360;
 
-	static constexpr std::int32_t renderWidth = 320;
+	static constexpr std::int32_t renderWidth = 1920;
+	static constexpr std::int32_t renderHeight = 1080;
 
-	static constexpr std::int32_t renderHeight = 240;
-
-
-
-	
-
-
-
-
-	static constexpr size_t sizeLong = sizeof(long);
-    // TODO bouger dans un fichier a part 
-	// TODO zoption bias blend 
-	namespace test
+	namespace FDB::Core
 	{
-		
-	
+		struct ChangeSceneEvent
+		{
+			std::uint64_t sceneId;
+		};
 
-	inline float AtomicCompareExchange(float* ptr,float exchange,float comparand) noexcept
-	{
-		auto* p = reinterpret_cast<volatile LONG*>(ptr);
+		struct GameLoop;
 
-		return std::bit_cast<float>(static_cast<std::uint32_t>(InterlockedCompareExchange(
-			p,
-			static_cast<LONG>(std::bit_cast<std::uint32_t>(exchange)),
-			static_cast<LONG>(std::bit_cast<std::uint32_t>(comparand))
-		)));
-	}
-	
-	class SpinLock {
-		std::atomic_flag flag = ATOMIC_FLAG_INIT;
-
-	public:
-		void lock() noexcept {
-			while (flag.test_and_set(std::memory_order_acquire)) {
-				// Spin
+		struct BasicScene
+		{
+		public:
+			friend GameLoop;
+			virtual ~BasicScene() = default;
+			virtual void HandleInput(FDB::Core::JobPool& pool)
+			{
 			}
-		}
-		void unlock() noexcept {
-			flag.clear(std::memory_order_release);
-		}
-	};
+			virtual void Update(float dt, FDB::Core::JobPool& pool)
+			{
+				
+			}
+			virtual void Render(FDB::Core::JobPool& pool)
+			{
+				
+			}
+			virtual  Color::RGBA8888 ClearColor()
+			{
+				return  Color::alpha8;
+			}
+			[[nodiscard]] std::uint64_t GetSceneId() const
+			{
+				return m_sceneId;
+			}
+		protected:
+			virtual void InitScene()
+			{
+				
+			}
+			FDB::Render::SDLGraphicPipeline* m_renderer = nullptr;
+			FDB::Sdl::Window* m_window = nullptr;
+		private:
+			void Init(FDB::Sdl::Window* window, FDB::Render::SDLGraphicPipeline* renderer,std::uint64_t id)
+			{
+				m_renderer = renderer;
+				m_window = window;
+				m_sceneId = id;
+				InitScene();
+			}
+			std::uint64_t m_sceneId = 0;
 
-	static constexpr  auto size = sizeof(std::atomic_flag);
-}
+		};
+	}	
+	#include <vector>
+	namespace FDB::Core
+	{
+		struct GameLoop
+		{
+		public:
+			GameLoop(const std::string& name,const glm::uvec2& size) : m_window(name.c_str(), size, SDL_WINDOW_RESIZABLE),m_pool()
+			{
+				m_renderer = std::make_unique<FDB::Render::SDLGraphicPipeline>(&m_window, size);
+				FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
+				m_handle = FDB::Pipeline::EventBus<FDB::Core::ChangeSceneEvent>::SubScribe<GameLoop,&GameLoop::ChangeSceneEvent>(this);
+			}
+			void AddScene(std::unique_ptr<BasicScene> scene,bool main = false)
+			{
+				scene->Init(&m_window, m_renderer.get(), m_scenes.size());
+				m_scenes.push_back(std::move(scene));
+				if (main)
+				{
+					m_currentScene = m_scenes.back().get();
+					m_currentSceneId = m_scenes.size() - 1;
+				}
+			}
+			~GameLoop()
+			{
+				FDB::Pipeline::EventBus<FDB::Core::ChangeSceneEvent>::UnSubscribe(m_handle);
+				m_window.CloseWindow();
+				FDB::Sdl::Application::Destroy();
+			}
+			void Loop()
+			{
+				if (!m_currentScene)
+					return;
+
+				std::uint64_t frameCount = 0;
+				KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution,KTR::duration::milli_seconds_type<double>> fpsTimer;
+				fpsTimer.Resume();
+				auto lastFps = fpsTimer.GetTime();
+
+				KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution,KTR::duration::seconds_type<float>> timer;
+				timer.Resume();
+				auto last = timer.GetTime();
+				while (!FDB::Sdl::Application::ShouldQuit() && !m_window.ShouldClose())
+				{
+					this->ChangeScene();
+					FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
+					{
+						++frameCount;
+						auto currentFps = fpsTimer.GetTime();
+
+						auto delta = (currentFps - lastFps).count();
+						if (delta >= 1000)
+						{
+							const double fps = static_cast<double>(frameCount) * 1000.0 / delta;
+
+							std::string title = "FPS: " + std::to_string(static_cast<int>(fps));
+							m_window.SetTitle(title.c_str());
+
+							frameCount = 0;
+							lastFps = currentFps;
+						}
+					}
+
+
+					m_currentScene->HandleInput(m_pool);
+
+					auto current = timer.GetTime();
+					m_currentScene->Update((current - last).count(), m_pool);
+					last = current;
+
+					m_renderer->ClearColor(m_currentScene->ClearColor());
+					m_renderer->BeginRender();
+					m_currentScene->Render(m_pool);
+					m_renderer->PresentRender(m_pool);
+				}
+			}
+		private:
+			void ChangeSceneEvent(const FDB::Core::ChangeSceneEvent& event)
+			{
+				m_currentSceneId = event.sceneId;
+				m_sceneChanged = true;
+			}
+			void ChangeScene()
+			{
+				if (!m_currentScene)
+					return;
+				m_sceneChanged = false;
+				m_currentScene = m_scenes[m_currentSceneId].get();
+			}
+
+			std::vector<std::unique_ptr<BasicScene>> m_scenes;
+			BasicScene* m_currentScene = nullptr;
+			std::uint64_t m_currentSceneId = 0;
+			bool m_sceneChanged = false; 
+			FDB::Sdl::Window m_window;
+			FDB::Pipeline::EventBus<FDB::Core::ChangeSceneEvent>::BusHandle m_handle;
+			FDB::Core::JobPool m_pool;
+			std::unique_ptr<FDB::Render::SDLGraphicPipeline> m_renderer;
+		};
+	}
+
+
+
+
 
 	
+	
+	
+
 #include "KTR/Tools/KTR_Chrono.h"
 #include "KTR/Tools/KTR_Random.h"
 
@@ -149,181 +267,133 @@
 
 	using atomicPixel_t = std::atomic<Pixel>;
 
-
-
-	int main(int argc, char* argv[])
+		
+	struct SampleScene : public FDB::Core::BasicScene
 	{
-		//atomicPixel_t pixel;
-
-		//Pixel p = pixel.load(std::memory_order_relaxed);
-		//Pixel test;
-
-		//if (test.z > p.z)
-		//{
-		//	// process
-		//}
-		//while (test.z > p.z)
-		//{
-		//	pixel.compare_exchange_weak(p, test);
-		//}
-		
-		
-
-		FDB::Pipeline::buffer_t<int> intBuffer({ 10,10 });
-		intBuffer.Resize({ 40,40 });
-		intBuffer.Clear(0);
-
-		FDB::Pipeline::buffer_view_t<int> data = intBuffer.GetView();
-		++data.data;
-		*(data.data + 1) = 5;
-
-		std::filesystem::path path = argv[0];
-		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
-		std::cout << argv[0] << "\n";
-
-		FDB::Core::Material baseMaterial;
-	
-		//baseMaterial.baseColor = FDB::Core::textureLoader_t::Load("Textures/Base/base_color_map.png");
-		baseMaterial.baseColor = FDB::Core::textureLoader_t::Load("damier.jpg");
-		baseMaterial.normalMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_normal_map.png");
-		baseMaterial.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_emissive_map.png");
-		baseMaterial.OMRMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_OMR_map.png");
-
-		FDB::Core::Material material;
-		material.baseColor = FDB::Core::textureLoader_t::Load("Textures/BaseColor.png");
-		material.normalMap = FDB::Core::textureLoader_t::Load("Textures/Normal.png");
-		material.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Emissive.png");
-		material.OMRMap = FDB::Core::textureLoader_t::Load("Textures/ORM.png");
-
-		auto* texture = FDB::Core::textureLoader_t::Load("image.png");
-
-		auto* mesh = FDB::Core::meshLoader_t::Load("polaris.obj");
-
-		//auto tes2t = textureLoad::Load("README.md");
-		auto transfrom = FDB::Core::Transform();
-		transfrom.ScaleUp({ 2.f,2.f,2.f });
-		transfrom.Rotate(glm::pi<float>() / 2.0f, { 1,0,0 });
-		auto camera = FDB::Core::Camera();
-		auto transformCam = FDB::Core::Transform();
-		transformCam.LookAtDir({ 0,0,-1 });
-		transformCam.SetPosition({ 0,0,5 });
-		camera.Update(transformCam.GetModelM());
-
-		std::vector<FDB::Core::lightData_t> lDatas;
-		auto light = FDB::Core::Light();
-		light.SetType(FDB::Core::LightType::Point);
-		light.SetPos({ 0,0,3});
-		light.SetDir(glm::normalize(glm::vec3{-2,0,-1}));
-		light.SetColor(FDB::Color::whiteFloat);
-		light.SetIntensity(150.f);
-
-		auto transfrom2 = FDB::Core::Transform();
-		transfrom2.SetPosition(glm::vec3{ 0,0,1 });
-
-		auto light2 = FDB::Core::Light();
-		light2.SetType(FDB::Core::LightType::Dir);
-		light2.SetColor(FDB::Color::blueFloat);
-
-		light2.SetPos({ 0,0,5 });
-		light2.SetDir(glm::normalize(glm::vec3{ -2,-1,0 }));
-
-		light2.SetIntensity(5.f);
-		//lDatas.push_back(light2.GetData());
-		lDatas.push_back(light.GetData());
-
+	public:
 		using renderPath_t = FDB::Pipeline::RenderPath<
 			vertIn_t,
 			vertOut_t,
 			vertData_t,
 			pathInData_t,
 			pathOutData_t,
-		&FDB::Render::PBRShader::VertexShader,
+			&FDB::Render::PBRShader::VertexShader,
 			&FDB::Render::PBRShader::FragmentShader<false>,
 			FDB::Pipeline::default_rasterizerOpt_t>;
-
-
-
-
-
-		renderPath_t pipeline;
-		static constexpr float value = 3.4028230e+38f;
-		static constexpr float result = 1.1754944e-38f;
-		float i = value;
-		test::AtomicCompareExchange(&i, result, value);
-	/*	if (i == result)
-			throw;*/
-
-
-		FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
-		FDB::Sdl::Window window("test", { windowWidth,windowHeight }, SDL_WINDOW_RESIZABLE);
-
-		glm::vec<2, std::int32_t> size = { renderWidth,renderHeight };
-
-		FDB::Render::SDLGraphicPipeline Grenderer(&window,size);
-		//Grenderer.SetResolutionMode(FDB::Render::ResolutionMode::Adaptative);
-		//Grenderer.GetRenderer()->SetVSync(1);
-
-
-		Uint64 lastTime = SDL_GetTicks();
-		std::uint32_t frameCount = 0;
-
-		KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
-
-
-		FDB::Core::jobPool_t pool;
-		//timer.Resume();
-		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
+	protected:
+		void InitScene() override
 		{
-			FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
-			// TODO refact fps
-			{
-				++frameCount;
+			m_transform = FDB::Core::Transform();
+			m_transform.ScaleUp({ 2.f,2.f,2.f });
+			m_transform.Rotate(glm::pi<float>() / 2.0f, { 1,0,0 });
+			m_camera = FDB::Core::Camera();
+			m_camTransform = FDB::Core::Transform();
+			m_camTransform.LookAtDir({ 0,0,-1 });
+			m_camTransform.SetPosition({ 0,0,5 });
+			m_camera.Update(m_camTransform.GetModelM());
 
-				Uint64 currentTime = SDL_GetTicks();
+			m_light = FDB::Core::Light();
+			m_light.SetType(FDB::Core::LightType::Point);
+			m_light.SetPos({ 0,0,3 });
+			m_light.SetDir(glm::normalize(glm::vec3{ -2,0,-1 }));
+			m_light.SetColor(FDB::Color::whiteFloat);
+			m_light.SetIntensity(150.f);
 
-				if (currentTime - lastTime >= 1000)
-				{
-					float fps = static_cast<float>(frameCount) * 1000.f /
-						static_cast<float>(currentTime - lastTime);
+			m_transform2 = FDB::Core::Transform();
+			m_transform2.SetPosition(glm::vec3{ 0,0,1 });
 
-					std::string title = std::to_string(static_cast<int>(fps));
+			m_light2 = FDB::Core::Light();
+			m_light2.SetType(FDB::Core::LightType::Dir);
+			m_light2.SetColor(FDB::Color::blueFloat);
 
-					SDL_SetWindowTitle(
-						window.GetSdlWindow(),
-						title.c_str());
+			m_light2.SetPos({ 0,0,5 });
+			m_light2.SetDir(glm::normalize(glm::vec3{ -2,-1,0 }));
 
-					frameCount = 0;
-					lastTime = currentTime;
-				}
-			}
-			Grenderer.ClearColor({ 0, 0, 0, 255 });
-			Grenderer.BeginRender();
-			pipeline.BindVInData(camera.GetData());
-			FDB::Render::fragmentShaderData outD{ material  ,lDatas};
-			pipeline.BindVOutData(outD);
-			transfrom.Rotate(0.01f,  FDB::Core::Axis::forward);
-
-			/*transfrom.SetRotation({ glm::pi<float>() / 4.f,glm::pi<float>() / 8.f,0 });
-			transfrom.Move({ 0,0,-0.1 });*/
-
-			auto image = Grenderer.GetFrameBuffer();
-
-
-			auto subs = mesh->subMeshes;
-			pipeline.BindVertexData(transfrom.GetModelM());
-			for(auto& sub : subs)
-				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(), image,pool);
+			m_light2.SetIntensity(5.f);
+			//lDatas.push_back(light2.GetData());
+			m_lDatas.push_back(m_light.GetData());
 
 
 
-			pipeline.BindVertexData(transfrom2.GetModelM());
+			m_baseMaterials.baseColor = FDB::Core::textureLoader_t::Load("damier.jpg");
+			m_baseMaterials.normalMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_normal_map.png");
+			m_baseMaterials.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_emissive_map.png");
+			m_baseMaterials.OMRMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_OMR_map.png");
+
+			m_material.baseColor = FDB::Core::textureLoader_t::Load("Textures/BaseColor.png");
+			m_material.normalMap = FDB::Core::textureLoader_t::Load("Textures/Normal.png");
+			m_material.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Emissive.png");
+			m_material.OMRMap = FDB::Core::textureLoader_t::Load("Textures/ORM.png");
+
+
+			m_mesh = FDB::Core::meshLoader_t::Load("bloc_1x1.obj");
+			m_renderPath = renderPath_t();
+		}
+	public:
+		void Render(FDB::Core::JobPool& pool) override
+		{
+			
+
+			m_pipeline.BindVInData(m_camera.GetData());
+			FDB::Render::fragmentShaderData outD{ m_material  ,m_lDatas };
+			m_pipeline.BindVOutData(outD);
+
+			auto image = m_renderer->GetFrameBuffer();
+
+
+			auto subs = m_mesh->subMeshes;
+			m_pipeline.BindVertexData(m_transform.GetModelM());
 			for (auto& sub : subs)
-				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), Grenderer.GetViewPort(), image, pool);
+				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+
+			m_pipeline.BindVertexData(m_transform2.GetModelM());
+			for (auto& sub : subs)
+				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
 			pool.WaitIdle();
-			Grenderer.PresentRender();
 		}
-		FDB::Sdl::Application::Destroy();
+		void Update(float dt, FDB::Core::JobPool& pool) override
+		{
+			m_transform.Rotate(1.0f * dt, FDB::Core::Axis::forward);
+		}
+		void HandleInput(FDB::Core::JobPool& pool) override
+		{
+			const bool* keyboardState = SDL_GetKeyboardState(nullptr);
+
+			if (keyboardState[SDL_SCANCODE_F])
+			{
+				FDB::Pipeline::EventBus<FDB::Core::ChangeSceneEvent>::Notify({ 1 });
+			}
+
+		}
+	private:
+		
+		FDB::Core::Transform m_transform;
+		FDB::Core::Transform m_transform2;
+		FDB::Core::Transform m_camTransform;
+		FDB::Core::Camera m_camera;
+		std::vector<FDB::Core::lightData_t> m_lDatas;
+		FDB::Core::Light m_light;
+		FDB::Core::Light m_light2;
+
+		FDB::Core::Material m_baseMaterials;
+		FDB::Core::Material m_material;
+		FDB::Core::Mesh* m_mesh = nullptr;
+		renderPath_t m_pipeline;
+		renderPath_t m_renderPath;
+	};
+
+
+	int main(int argc, char* argv[])
+	{
+		std::filesystem::path path = argv[0];
+		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
+		FDB::Core::GameLoop loop("test", { windowWidth,windowHeight });
+		loop.AddScene(std::make_unique<SampleScene>(),true);
+		loop.AddScene(std::make_unique<FDB::Core::BasicScene>(), false);
+
+		loop.Loop();
+		
 		
 	}
 

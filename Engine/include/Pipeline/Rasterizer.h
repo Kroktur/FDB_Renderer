@@ -254,13 +254,14 @@ namespace FDB::Pipeline
 		std::byte m_data[interpret_t::structSize];
 	};
 
-	
 
-
-	template<FDB::Pipeline::ValidVertexT VertexT,std::size_t dim = 8>
+	template<FDB::Pipeline::ValidVertexT VertexT,typename VOutData, auto(*fragmentShader)(const fragment_input_t<VertexT>&, const VOutData&), std::size_t dim = 8
+	, ValidCullData cullT = default_cullData_t, ValidBlendData blendT = default_blendData_t, ValidDepthData depthT = default_depthData_t,
+	ValidWriteMaskData writeT = rgba_writeMaskData_t>requires(ValidFragmentFunction<VertexT, decltype(fragmentShader), const VOutData&>)
 	struct TriangleRasterizer
 	{
 		using fragment = VertexT;
+		using fragment_out_t = VOutData;
 		using triangle_t = std::array<fragment, 3>;
 		using viewPort_t = Rect<std::int32_t>;
 		using attributeData_t = AttributeRasterizerData<fragment>;
@@ -300,14 +301,14 @@ namespace FDB::Pipeline
 			glm::vec<2, std::int32_t> pixel = {};
 			float fixedW = 0;
 			float fixedZ = 0;
-			std::uint32_t* imagePtr = nullptr;
-			float* zImagePtr = nullptr;
 			std::atomic<Pixel>* pixelImagePtr = nullptr;
-			glm::vec<4, float>* colorPtr = nullptr;
 		};
+
+
+	
 		
-		template< ValidCullData cullT = default_cullData_t, ValidBlendData blendT = default_blendData_t, ValidDepthData depthT = default_depthData_t, ValidWriteMaskData writeT = rgba_writeMaskData_t, typename fragmentShaderT> requires(ValidFragmentFunction<fragment, fragmentShaderT>)
-			static void Compute(const triangle_t& triangle,const std::array<glm::vec<4, float>, 3>& position, const viewPort_t& viewPort, const FrameBuffer& image, const fragmentShaderT& fragmentShader,Core::jobPool_t& pool)
+	
+			static void Compute(const triangle_t& triangle,const std::array<glm::vec<4, float>, 3>& position, const viewPort_t& viewPort, const FrameBuffer& image, const fragment_out_t& fragmentOut,Core::jobPool_t& pool)
 		{
 			float area = cullT::GetArea(position);
 			if (area <= 0)
@@ -345,11 +346,10 @@ namespace FDB::Pipeline
 			setup.topLeftRule[1] = TriangleRasterizer::IsTopLeft(fixedPos[1], fixedPos[2]);
 			setup.topLeftRule[2] = TriangleRasterizer::IsTopLeft(fixedPos[2], fixedPos[0]);
 
-			TriangleRasterizer::Loop<blendT, depthT, writeT, fragmentShaderT>(setup, image, fragmentShader,pool);
+			TriangleRasterizer::Loop(setup, image, fragmentOut,pool);
 		}
 	private:
-		template<ValidBlendData blendT, ValidDepthData depthT, ValidWriteMaskData writeT, typename fragmentShaderT>
-			static void Loop(const LoopSetup& setup, const FrameBuffer& image, const fragmentShaderT& fragmentShader,Core::jobPool_t& pool)
+			static void Loop(const LoopSetup& setup, const FrameBuffer& image, const fragment_out_t& fragmentOut,Core::jobPool_t& pool)
 		{
 
 			BlockSetup blockSetup;
@@ -368,8 +368,8 @@ namespace FDB::Pipeline
 				blockSetup.block.blockSize.y = std::min(blockDim.y, setup.box.max.y - blockY + 1);
 				for (std::int32_t blockX = setup.box.min.x; blockX <= setup.box.max.x; blockX += blockDim.x)
 				{
-					/*pool.PushJob([blockX, blockY, setup, blockSetup, &image, fragmentShader, &pool]()mutable 
-					{*/
+					pool.PushJob([blockX, blockY, setup, blockSetup, &fragmentOut, &image, &pool]()mutable
+					{
 							blockSetup.block.blockSize.x = std::min(blockDim.x, setup.box.max.x - blockX + 1);
 							blockSetup.block.blockOrigin = { blockX, blockY };
 
@@ -385,13 +385,13 @@ namespace FDB::Pipeline
 
 							if (TriangleRasterizer::IsBlock<true>(fixedBlockEdgeData))
 							{
-								TriangleRasterizer::PixelLoop < blendT, depthT, writeT, fragmentShaderT >(setup.triangle, blockSetup, image, fragmentShader,pool);
+								TriangleRasterizer::PixelLoop (setup.triangle, blockSetup, image, fragmentOut,pool);
 							}
 							else
 							{
-								TriangleRasterizer::PixelLoop< blendT, depthT, writeT, fragmentShaderT>(setup.triangle, setup.topLeftRule, fixedBlockEdgeData, blockSetup, image, fragmentShader, pool);
+								TriangleRasterizer::PixelLoop(setup.triangle, setup.topLeftRule, fixedBlockEdgeData, blockSetup, image, fragmentOut, pool);
 							}
-					/*});*/
+					});
 
 
 
@@ -399,8 +399,7 @@ namespace FDB::Pipeline
 				}
 			}
 		}
-		template< ValidBlendData blendT, ValidDepthData depthT, ValidWriteMaskData writeT, typename fragmentShaderT> 
-			static void PixelLoop(const triangle_t& triangle,const BlockSetup& setup, const FrameBuffer& image, const fragmentShaderT& fragmentShader, Core::jobPool_t& pool)
+			static void PixelLoop(const triangle_t& triangle,const BlockSetup& setup, const FrameBuffer& image, const fragment_out_t& fragmentOut, Core::jobPool_t& pool)
 		{
 				FragmentSetup applySetup;
 				BlockSetup currentSetup = setup;
@@ -414,23 +413,17 @@ namespace FDB::Pipeline
 					applySetup.fixedInter = currentSetup.fixedInterData.data;
 
 					applySetup.pixel = { currentSetup.block.blockOrigin.x,currentSetup.block.blockOrigin.y + y };
-					applySetup.imagePtr = image.colorBuffer.data + (applySetup.pixel.y * image.colorBuffer.size.x + applySetup.pixel.x);
-					applySetup.zImagePtr = image.zBuffer.data + (applySetup.pixel.y * image.zBuffer.size.x + applySetup.pixel.x);
-					applySetup.colorPtr = image.colorFBuffer.data + (applySetup.pixel.y * image.colorFBuffer.size.x + applySetup.pixel.x);
 					applySetup.pixelImagePtr = image.atomicBuffer.data + (applySetup.pixel.y * image.atomicBuffer.size.x + applySetup.pixel.x);
 
 
 					for (std::int32_t x = 0; x < currentSetup.block.blockSize.x; ++x)
 					{
-						/*pool.PushJob([triangle,applySetup,currentSetup, &image, fragmentShader, &pool]()
-							{*/
-								TriangleRasterizer::ApplyFragment<blendT, depthT, writeT, fragmentShaderT>(triangle, applySetup, currentSetup, fragmentShader);
-							/*});*/
-						++applySetup.imagePtr;
-						++applySetup.zImagePtr;
-						++applySetup.colorPtr;
+						//pool.PushJob([triangle,applySetup,currentSetup, &image, fragmentShader, &pool]()
+						//	{
+								TriangleRasterizer::ApplyFragment(triangle, applySetup, currentSetup, fragmentOut);
+//							});
+					
 						++applySetup.pixelImagePtr;
-
 						++applySetup.pixel.x;
 						
 						applySetup.fixedW += currentSetup.fixedWData.delta[0];
@@ -444,8 +437,8 @@ namespace FDB::Pipeline
 				}
 		}
 
-		template< ValidBlendData blendT, ValidDepthData depthT, ValidWriteMaskData writeT, typename fragmentShaderT > 
-			static void PixelLoop(const triangle_t& triangle, const std::array<bool, 3>& topLeftRule, const deltaData_t<glm::vec<3, fixed_value_t>>& edgeData, BlockSetup& setup, const FrameBuffer& image, const fragmentShaderT& fragmentShader, Core::jobPool_t& pool)
+		
+			static void PixelLoop(const triangle_t& triangle, const std::array<bool, 3>& topLeftRule, const deltaData_t<glm::vec<3, fixed_value_t>>& edgeData, BlockSetup& setup, const FrameBuffer& image, const fragment_out_t& fragmentOut, Core::jobPool_t& pool)
 		{
 			FragmentSetup applySetup;
 			deltaData_t<glm::vec<3, fixed_value_t>> currentEdgeData = edgeData;
@@ -460,9 +453,6 @@ namespace FDB::Pipeline
 				applySetup.fixedInter = currentSetup.fixedInterData.data;
 
 				applySetup.pixel = { currentSetup.block.blockOrigin.x,currentSetup.block.blockOrigin.y + y };
-				applySetup.imagePtr = image.colorBuffer.data +(applySetup.pixel.y * image.colorBuffer.size.x + applySetup.pixel.x);
-				applySetup.zImagePtr = image.zBuffer.data + (applySetup.pixel.y * image.zBuffer.size.x + applySetup.pixel.x);
-				applySetup.colorPtr = image.colorFBuffer.data + (applySetup.pixel.y * image.colorFBuffer.size.x + applySetup.pixel.x);
 				applySetup.pixelImagePtr = image.atomicBuffer.data + (applySetup.pixel.y * image.atomicBuffer.size.x + applySetup.pixel.x);
 
 				for (std::int32_t x = 0; x < currentSetup.block.blockSize.x; ++x)
@@ -470,14 +460,12 @@ namespace FDB::Pipeline
 
 					if (TriangleRasterizer::IsInside(fixedEdgeFn, topLeftRule))
 					{
-						/*pool.PushJob([triangle, applySetup, currentSetup, &image, fragmentShader, &pool]()
-							{*/
-								TriangleRasterizer::ApplyFragment<blendT, depthT, writeT, fragmentShaderT>(triangle, applySetup, currentSetup, fragmentShader);
-						/*	});*/
+						//pool.PushJob([triangle, applySetup, currentSetup, &image, fragmentShader, &pool]()
+						//	{
+								TriangleRasterizer::ApplyFragment(triangle, applySetup, currentSetup, fragmentOut);
+//							});
 					}
-					++applySetup.imagePtr;
-					++applySetup.zImagePtr;
-					++applySetup.colorPtr;
+				
 					++applySetup.pixelImagePtr;
 					++applySetup.pixel.x;
 					fixedEdgeFn += currentSetup.fixedEdgeIncrement[0];
@@ -497,10 +485,10 @@ namespace FDB::Pipeline
 			}
 		}
 	private:
-		template< ValidBlendData blendT, ValidDepthData depthT, ValidWriteMaskData writeT, typename fragmentShaderT>
-			static void ApplyFragment(const triangle_t& triangle, const FragmentSetup& applySetup, const BlockSetup& blockSetup, const fragmentShaderT& fragmentShader)
+		
+			static void ApplyFragment(const triangle_t& triangle, const FragmentSetup& applySetup, const BlockSetup& blockSetup, const fragment_out_t& fragmentOut)
 		{
-			static constexpr fragmentState_t fragOutPut = fragOutput_v<fragment, fragmentShaderT>;
+			static constexpr fragmentState_t fragOutPut = fragOutput_v<fragment,decltype(fragmentShader),const VOutData&>;
 
 			// early z test if possible
 			if constexpr (fragOutPut != fragmentState_t::DepthChange && depthT::zTestEnabled_v)
@@ -510,7 +498,7 @@ namespace FDB::Pipeline
 					return;
 			}
 			// process fragment and create pixel
-			fragment_output_t<fragOutput_v<fragment, fragmentShaderT>> out = TriangleRasterizer::ExecuteFragmentShader <fragmentShaderT >(applySetup, blockSetup, fragmentShader);
+			fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader), const VOutData&>> out = TriangleRasterizer::ExecuteFragmentShader(applySetup, blockSetup, fragmentOut);
 			Pixel pixel{ applySetup.fixedZ, glm::vec4(0.f)};
 
 			// verify if need discard
@@ -532,7 +520,7 @@ namespace FDB::Pipeline
 			}
 
 			Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
-			pixel.color = TriangleRasterizer::SetColor<blendT,writeT>(out.color, oldPixel.color);
+			pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
 
 			// if no z write
 			if constexpr (!depthT::zWriteEnable_v)
@@ -550,7 +538,7 @@ namespace FDB::Pipeline
 					{
 						return;
 					}
-					pixel.color = TriangleRasterizer::SetColor<blendT, writeT>(out.color, oldPixel.color);
+					pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
 
 				}
 			}
@@ -567,20 +555,18 @@ namespace FDB::Pipeline
 					{
 						return;
 					}
-					pixel.color = TriangleRasterizer::SetColor<blendT, writeT>(out.color, oldPixel.color);
+					pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
 
 				}
 			}
 		}
-		template<ValidBlendData blendT, ValidWriteMaskData writeT>
 		static glm::vec4 SetColor(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& dstColor)
 		{
 			glm::vec<4, float> realColor = glm::clamp(blendT::Blend(srcColor, dstColor), 0.f, 1.f);
 			return  writeT::Apply(realColor, dstColor);
 		}
 
-		template< typename fragmentShaderT>
-		[[nodiscard]] static  fragment_output_t<fragOutput_v<fragment, fragmentShaderT>> ExecuteFragmentShader(const FragmentSetup& applySetup, const BlockSetup& blockSetup, const fragmentShaderT& fragmentShader)
+		[[nodiscard]] static  fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader),const fragment_out_t&>> ExecuteFragmentShader(const FragmentSetup& applySetup, const BlockSetup& blockSetup, const fragment_out_t& fragmentOut)
 		{
 			fragment_input_t<fragment> fixedFragInput;
 			
@@ -609,7 +595,7 @@ namespace FDB::Pipeline
 			fixedFragInput.zDx = blockSetup.fixedZData.delta[0];
 			fixedFragInput.zDy = blockSetup.fixedZData.delta[1];
 
-			return fragmentShader(fixedFragInput);
+			return fragmentShader(fixedFragInput,fragmentOut);
 		}
 		//
 

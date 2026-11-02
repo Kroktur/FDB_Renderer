@@ -101,11 +101,12 @@ namespace FDB::Pipeline
 
 
 
-		using rasterizer_t = TriangleRasterizer<vertexOut>;
 		using blendT = RasterizerOpt::blend_t;
 		using DepthT = RasterizerOpt::depth_t;
 		using cullType = RasterizerOpt::cull_t;
 		using writeT = RasterizerOpt::write_t;
+		using rasterizer_t = TriangleRasterizer < vertexOut, vOut_data_t, fragmentShader, 64, cullType, blendT, DepthT, writeT > ;
+
 
 
 		struct VertexOutData
@@ -138,52 +139,45 @@ namespace FDB::Pipeline
 		{
 			using fragmentInput_t = FDB::Pipeline::FragmentInput<vertexOut>;
 
-			auto copy = m_vOutBuffer;
-			auto fragmentShader2 = [copy](const fragmentInput_t& input)
-				{
-					return  fragmentShader(input, copy);
-				};
-
 			for (std::size_t i = 0; i + 2 < indexCount; i += 3)
 			{
 				
 
 				auto copyVertex = m_vertexData;
-				auto copyInBuffer = m_vInBuffer;
 
 				vertex vA = vBuffer[iBuffer[i]];
 				vertex vB = vBuffer[iBuffer[i + 1]];
 				vertex vC = vBuffer[iBuffer[i + 2]];
-				/*pool.PushJob([fragmentShader2,i,vA,vB,vC,copyVertex,copyInBuffer,viewPort,&imageData,&pool]()
-					{*/
+				pool.PushJob([vA,vB,vC,copyVertex,this,&viewPort,&imageData,&pool]()
+					{
 					
 						VertexOutData vertexOut[3];
-						vertexOut[0].vertex = vertexShader(vA, copyVertex, copyInBuffer);
+						vertexOut[0].vertex = vertexShader(vA, copyVertex, m_vInBuffer);
 						vertexOut[0].position = interpret_t::GetPosition(vertexOut[0].vertex);
-						vertexOut[1].vertex = vertexShader(vB, copyVertex, copyInBuffer);
+						vertexOut[1].vertex = vertexShader(vB, copyVertex, m_vInBuffer);
 						vertexOut[1].position = interpret_t::GetPosition(vertexOut[1].vertex);
-						vertexOut[2].vertex = vertexShader(vC, copyVertex, copyInBuffer);
+						vertexOut[2].vertex = vertexShader(vC, copyVertex, m_vInBuffer);
 						vertexOut[2].position = interpret_t::GetPosition(vertexOut[2].vertex);
 						std::vector<VertexOutData> poly = RenderPath::Clip(vertexOut[0], vertexOut[1], vertexOut[2]);
 						for (std::size_t j = 1; j + 1 < poly.size(); ++j) {
 							VertexOutData a = RenderPath::Screen(RenderPath::Perspective(poly[0]), viewPort);
 							VertexOutData b = RenderPath::Screen(RenderPath::Perspective(poly[j]), viewPort);
 							VertexOutData c = RenderPath::Screen(RenderPath::Perspective(poly[j + 1]), viewPort);
-							/*pool.PushJob([a,b,c,fragmentShader2,viewPort,&imageData,&pool]()mutable 
-							{*/
+							pool.PushJob([a,b,c,this,&viewPort,&imageData,&pool]()mutable 
+							{
 									auto result = cullType::ValidArea(std::array<glm::vec<4, float>, 3>{ a.position, b.position, c.position });
 									if (!result.valid)
-										continue;
+										return;
 									if (result.needSwap)
 									{
 										std::swap(b.position, c.position);
 									}
-									rasterizer_t::template Compute< cullType, blendT, DepthT, writeT>({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, fragmentShader2,pool);
-							/*});*/
+									rasterizer_t::template Compute ({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, m_vOutBuffer, pool);
+							});
 
 							
 						}
-					/*});*/
+					});
 			}
 		}
 

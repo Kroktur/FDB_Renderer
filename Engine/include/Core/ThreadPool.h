@@ -18,7 +18,7 @@ namespace FDB::Core
 		JobPool(JobPool&& other) noexcept = delete;
 		~JobPool();
 	public:
-		void PushJob(job_t job);
+		void PushJob(job_t&& job);
 		void WaitIdle();
 	private:
 		void WorkerLoop(std::stop_token token);

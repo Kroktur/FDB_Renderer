@@ -23,9 +23,7 @@ namespace FDB::Pipeline
 		[[nodiscard]]FrameBuffer GetBuffer();
 	private:
 		void Resize(const glm::vec<2, std::int32_t>& size);
-		buffer_t<glm::vec<4, float>> m_colorFBuffer;
 		buffer_t<std::uint32_t> m_colorBuffer;
-		buffer_t<float> m_zBuffer;
 		buffer_t<atomicPixel_t> m_pixelBuffer;
 		glm::vec<2, std::int32_t> m_size ={};
  	};
