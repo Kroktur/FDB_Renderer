@@ -90,6 +90,11 @@ set(KTR_HEADER ${KTR}/include)
 #quickhull
 set(QH_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/quickhull)
 
+#soloud
+set(SOLOUD ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/soloud)
+set(SOLOUD_HEADER ${SOLOUD}/includes)
+set(SOLOUD_LIB ${SOLOUD}/lib)
+
 
 target_include_directories(${PROJECT_NAME}
     PUBLIC 
@@ -101,6 +106,7 @@ target_include_directories(${PROJECT_NAME}
     ${STBIMAGE_HEADER}
     ${KTR_HEADER}
     ${QH_HEADER}
+    ${SOLOUD_HEADER}
     PRIVATE
   # ${MYLIB_HEADER}
 )
@@ -112,6 +118,7 @@ target_link_libraries(${PROJECT_NAME}
     PUBLIC
   # YourLib
   # ${MYLIB_LIB}/YourLib.lib
+  ${SOLOUD_LIB}/soloud_static_x64.lib
     PRIVATE
   # YourLib
   # ${MYLIB_LIB}/YourLib.lib

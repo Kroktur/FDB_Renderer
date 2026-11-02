@@ -18,6 +18,7 @@
 #include "Core/LoadObj.h" 
 #include "Core/Relaxation.h"
 #include "Core/CreateSphere.h"
+//#include "Audio/Audio.h"
 
 
 #define WIN32_LEAN_AND_MEAN
@@ -55,6 +56,7 @@
 #include <deque>
 #include <KTR/KTR_assert.h>
 
+#include "Audio/Audio.h"
 #include "Core/Axis.h"
 #include "Core/Camera.h"
 #include "Core/Light.h"
@@ -140,6 +142,8 @@
 			{
 				m_renderer = std::make_unique<FDB::Render::SDLGraphicPipeline>(&m_window, size);
 				FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
+				FDB::Audio::Soloud::Init();
+
 				m_handle = FDB::Pipeline::EventBus<FDB::Core::ChangeSceneEvent>::SubScribe<GameLoop,&GameLoop::ChangeSceneEvent>(this);
 			}
 			void AddScene(std::unique_ptr<BasicScene> scene,bool main = false)
@@ -157,6 +161,8 @@
 				FDB::Pipeline::EventBus<FDB::Core::ChangeSceneEvent>::UnSubscribe(m_handle);
 				m_window.CloseWindow();
 				FDB::Sdl::Application::Destroy();
+				FDB::Audio::Soloud::Destroy();
+
 			}
 			void Loop()
 			{
@@ -352,6 +358,10 @@
 
 			m_mesh = FDB::Core::meshLoader_t::Load("bloc_1x1.obj");
 			m_renderPath = renderPath_t();
+			m_wav.SetWav(*FDB::Audio::wavManager_t::Load("chevre.mp3"));
+			m_wav.SetVolume(10);
+			m_wav.SetLoop(true);
+			m_wav.Play();
 		}
 	public:
 		void Render(FDB::Core::JobPool& pool) override
@@ -406,13 +416,14 @@
 		std::unique_ptr<FDB::Core::Mesh> m_SphereMesh;
 		renderPath_t m_pipeline;
 		renderPath_t m_renderPath;
+		FDB::Audio::Wav m_wav;
 	};
 		//	P(1, 1, 1), P(-1, 1, 1),
 		//	{ 0.f, 1.f, 0.f, 1.f });
 	int main(int argc, char* argv[])
 	{
 		std::filesystem::path path = argv[0];
-		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
+		FDB::Core::FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
 		FDB::Core::GameLoop loop("test", { windowWidth,windowHeight });
 		loop.AddScene(std::make_unique<SampleScene>(), true);
 		loop.AddScene(std::make_unique<FDB::Core::BasicScene>(), false);
