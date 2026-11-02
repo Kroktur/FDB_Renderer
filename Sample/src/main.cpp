@@ -300,12 +300,12 @@
 			m_light.SetPos({ 0,0,3 });
 			m_light.SetDir(glm::normalize(glm::vec3{ -2,0,-1 }));
 			m_light.SetColor(FDB::Color::whiteFloat);
-			m_light.SetIntensity(150.f);
+			m_light.SetIntensity(350.f);
 
 			m_transform2 = FDB::Core::Transform();
 			m_transform2.SetPosition(glm::vec3{ 0,0,1 });
-		std::uint32_t frameCount = 0;
-		std::uint32_t frameCount = 0;
+			std::uint32_t frameCount = 0;
+		//std::uint32_t frameCount = 0;
 
 			m_light2 = FDB::Core::Light();
 			m_light2.SetType(FDB::Core::LightType::Dir);
@@ -314,14 +314,22 @@
 			
 			//Sphere function
 
-			//auto p3d = RelaxAlgo::createSphere();
 
-			//std::vector<glm::vec3> unit;
-			//for (auto& p : p3d) unit.push_back(glm::normalize(p));
+			m_SphereMesh = std::make_unique<FDB::Core::Mesh>();
+			auto p3d = RelaxAlgo::createSphere();
 
-			//auto sub = CreateSphere::TransformPointToTriangle(p3d);
-			//sub = CreateSphere::applyNoise(unit, sub.indices, 20.0f, 5.0f, 5.5f);
-			//auto subs = mesh->subMeshes;
+			std::vector<glm::vec3> unit;
+			for (auto& p : p3d) 
+				unit.push_back(glm::normalize(p));
+
+			auto sub = CreateSphere::TransformPointToTriangle(p3d);
+			sub = CreateSphere::applyNoise(unit, sub.indices, 20.0f, 5.0f, 5.5f);
+			m_SphereMesh->subMeshes.push_back(std::move(sub));
+			FDB::Core::MeshTools::ComputeTangent(*m_SphereMesh);
+
+			m_transform3.SetPosition(glm::vec3{ 0,0,-10 });
+			m_transform3.ScaleUp(glm::vec3{ 1.f/3.f });
+
 			m_light2.SetPos({ 0,0,5 });
 			m_light2.SetDir(glm::normalize(glm::vec3{ -2,-1,0 }));
 
@@ -358,34 +366,34 @@
 
 		//			});
 			auto subs = m_mesh->subMeshes;
-			m_pipeline.BindVertexData(m_transform.GetModelM());
+			/*m_pipeline.BindVertexData(m_transform.GetModelM());
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
 			m_pipeline.BindVertexData(m_transform2.GetModelM());
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+			pool.WaitIdle();*/
+			outD.mat = m_baseMaterials;
+			m_pipeline.BindVOutData(outD);
+
+			subs = m_SphereMesh->subMeshes;
+			m_pipeline.BindVertexData(m_transform3.GetModelM());
+			for (auto& sub : subs)
+				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
 			pool.WaitIdle();
 		}
 		void Update(float dt, FDB::Core::JobPool& pool) override
-		//addFace(P(-1, -1, 1), P(1, -1, 1),
-		//	P(1, 1, 1), P(-1, 1, 1),
-		//	{ 0.f, 1.f, 0.f, 1.f });
-
-		//// Face gauche : bleu
-		//addFace(P(-1, -1, -1), P(-1, -1, 1),
-		//	P(-1, 1, 1), P(-1, 1, -1),
-		//	{ 0.f, 0.f, 1.f, 1.f });
-		//			});
-		//// Face droite : jaune
-		//addFace(P(1, -1, -1), P(1, 1, -1),
-		//	P(1, 1, 1), P(1, -1, 1),
+		{
+			m_transform.Rotate(dt * 0.5f, { 0,0,-1 });
 		}
 	private:
 		
 		FDB::Core::Transform m_transform;
 		FDB::Core::Transform m_transform2;
+		FDB::Core::Transform m_transform3;
+
 		FDB::Core::Transform m_camTransform;
 		FDB::Core::Camera m_camera;
 		std::vector<FDB::Core::lightData_t> m_lDatas;
@@ -395,6 +403,7 @@
 		FDB::Core::Material m_baseMaterials;
 		FDB::Core::Material m_material;
 		FDB::Core::Mesh* m_mesh = nullptr;
+		std::unique_ptr<FDB::Core::Mesh> m_SphereMesh;
 		renderPath_t m_pipeline;
 		renderPath_t m_renderPath;
 	};
@@ -405,93 +414,9 @@
 		std::filesystem::path path = argv[0];
 		FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
 		FDB::Core::GameLoop loop("test", { windowWidth,windowHeight });
-		loop.AddScene(std::make_unique<SampleScene>(),true);
+		loop.AddScene(std::make_unique<SampleScene>(), true);
 		loop.AddScene(std::make_unique<FDB::Core::BasicScene>(), false);
 		//// Face gauche : bleu
 		loop.Loop();
-		
-		//addFace(P(1, -1, -1), P(1, 1, -1),
-		//	P(1, 1, 1), P(1, -1, 1),
-					frameCount = 0;
-					lastTime = currentTime;
-				}
-			}
 
-			Grenderer.ClearColor({ 173, 216, 230, 255 });
-			Grenderer.BeginRender();
-			pipeline.BindVInData(camera.GetData());
-			pipeline.BindVOutData(lDatas);
-
-			transfrom.Rotate(0.01f,  FDB::Core::Axis::forward);
-
-			//pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
-
-
-
-			//auto startP = std::chrono::high_resolution_clock::now();
-			//auto actual = timer.GetTime();
-
-			auto subs = mesh->subMeshes;
-			pipeline.BindVertexData(transfrom.GetModelM());
-			
-			for(auto& sub : subs)
-				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
-			/*auto now = timer.GetTime();
-				std::cout << KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(now - actual).count() << "\n";*/
-
-			pool.WaitIdle();
-			//auto result = endP - startP;
-		void Update(float dt, FDB::Core::JobPool& pool) override
-		  //std::cout << result.count() << " \n";
-
-			Grenderer.PresentRender();
-		}
-		FDB::Sdl::Application::Destroy();
-			const bool* keyboardState = SDL_GetKeyboardState(nullptr);
-
-					frameCount = 0;
-					lastTime = currentTime;
-				}
-			}
-
-			Grenderer.ClearColor({ 173, 216, 230, 255 });
-			Grenderer.BeginRender();
-			pipeline.BindVInData(camera.GetData());
-			pipeline.BindVOutData(lDatas);
-
-			transfrom.Rotate(0.01f,  FDB::Core::Axis::forward);
-
-			//pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
-
-
-
-			//auto startP = std::chrono::high_resolution_clock::now();
-			//auto actual = timer.GetTime();
-
-			auto subs = mesh->subMeshes;
-			pipeline.BindVertexData(transfrom.GetModelM());
-			
-			for(auto& sub : subs)
-				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
-			/*auto now = timer.GetTime();
-				std::cout << KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(now - actual).count() << "\n";*/
-		FDB::Core::Material m_material;
-		FDB::Core::Mesh* m_mesh = nullptr;
-			//auto result = endP - startP;
-		std::filesystem::path path = argv[0];
-		  //std::cout << result.count() << " \n";
-
-			Grenderer.PresentRender();
-		}
-		FDB::Sdl::Application::Destroy();
-		loop.AddScene(std::make_unique<SampleScene>(),true);
-		loop.AddScene(std::make_unique<FDB::Core::BasicScene>(), false);
-
-		loop.Loop();
-		
-		
 	}
-
-
-
-
