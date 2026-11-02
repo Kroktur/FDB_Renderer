@@ -6,7 +6,9 @@
 
 class RelaxAlgo {
 public:
-	static std::vector<glm::vec2> relaxationAlgo(std::vector<glm::vec2> points, int height, int width);
+	static std::vector<glm::vec3> relaxationAlgo(std::vector<glm::vec3> points, float& totalRelaxation);
+	static std::vector<glm::vec3> createSphere();
+
 };
 
 #endif // !RELAXATION

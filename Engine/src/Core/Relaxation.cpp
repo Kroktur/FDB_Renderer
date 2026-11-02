@@ -1,54 +1,73 @@
 #include <vector>
 #include <cmath>
 #include <GLM/glm.hpp>
-#include <limits>
 #include "Core/Relaxation.h"
+#include <KTR/Tools/KTR_Random.h>
+#include "KTR/Tools/KTR_Chrono.h"
+#include <glm/gtc/matrix_transform.hpp>
 
-std::vector<glm::vec2> RelaxAlgo::relaxationAlgo(std::vector<glm::vec2> points, int height, int width)
+
+
+std::vector<glm::vec3> RelaxAlgo::createSphere()
 {
-	std::vector<glm::vec2> newPoint = points;
+    KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
 
-	auto findClosestInAllDirections = [](const glm::vec2& p, const glm::vec2& candidate, const glm::vec2& domainSize)
-	{
-		glm::vec2 result;
-		float     dist = FLT_MAX;
+    KTR::Random::default_value_type seed{ KTR::Random::default_seed_gen_type{}() };
+    KTR::Random::default_bit_gen_type gen(seed);
+    KTR::distrib::Distribution<float> distZ(-1.f, 1.f);
+    KTR::distrib::Distribution<float> distA(0.f, glm::pi<float>() * 2.0f);
+    std::vector<glm::vec3> p3d;
 
-		for (int y = -1; y <= 1; ++y)
-		{
-			float dOfsY = float(y) * domainSize.y;
-			for (int x = -1; x <= 1; ++x)
-			{
-				float dOfsX = float(x) * domainSize.x;
-				glm::vec2 repeatedDomainCandidate = candidate + glm::vec2(dOfsX, dOfsY);
+    // points aléatoires uniformes sur la sphère unité
+    std::vector<glm::vec3> points;
+    for (size_t i = 0; i < 1024; ++i)
+    {
+        float z = distZ(gen);
+        float a = distA(gen);
+        float r = glm::sqrt(1.0f - z * z);
+        points.push_back(glm::vec3{ r * glm::cos(a), z, r * glm::sin(a) });
+    }
 
-				float d = glm::distance(p, repeatedDomainCandidate);
-				if (d < dist)
-				{
-					dist = d;
-					result = repeatedDomainCandidate;
-				}
-			}
-		}
+    float totalRelaxation;
+    do
+    {
+        points = relaxationAlgo(points, totalRelaxation);
+    } while (totalRelaxation > 0.5f);
 
-		return std::make_pair(result, dist);
-	};
+    constexpr float kRADIUS = 200.0f;
 
-	for (size_t x = 0; x < points.size(); x++) {
-		glm::vec2 totalForce(0.0f);
+    for (const auto& p : points) {
+        p3d.push_back(p * kRADIUS);
+    }
+    return p3d;
 
-		for (size_t y = 0; y < points.size(); y++) {
-			if (x == y)
-				continue;
+}
 
-			auto [p, dist] = findClosestInAllDirections(points[x], points[y], { 800, 600 });
+std::vector<glm::vec3> RelaxAlgo::relaxationAlgo(std::vector<glm::vec3> points, float& totalRelaxation)
+{
+    std::vector<glm::vec3> newPoint = points;
 
-			glm::vec2 dir  = glm::normalize(points[x] - p);
+    totalRelaxation = 0.0f;
 
-			totalForce += dir / (dist * dist * 0.01f);
-		}
+    for (size_t x = 0; x < points.size(); x++) {
+        glm::vec3 totalForce(0.0f);
 
-		newPoint[x] = points[x] + totalForce * 0.2f;
-	}
+        for (size_t y = 0; y < points.size(); y++) {
+            if (x == y)
+                continue;
 
-	return newPoint;
+            float     dist = glm::distance(points[x], points[y]);
+            glm::vec3 dir = glm::normalize(points[x] - points[y]);
+
+            totalForce += dir / (dist * dist * 1024.0f);
+        }
+
+        // on enlève la composante radiale : seule la force tangente à la sphère compte
+        totalForce -= points[x] * glm::dot(totalForce, points[x]);
+
+        totalRelaxation += glm::length(totalForce) * 0.1f;
+        newPoint[x] = glm::normalize(points[x] + totalForce * 0.1f);
+    }
+
+    return newPoint;
 }

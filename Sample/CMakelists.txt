@@ -46,6 +46,9 @@ add_executable(${PROJECT_NAME}
 
 # target your All Include here 
 # exemple bellow
+#QuickHull
+ set(QUICKHULL ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/quickhull)
+ set(QUICKHULL_HEADER ${QUICKHULL})
 
 #SDL3
  set(SDL3 ${CMAKE_CURRENT_SOURCE_DIR}/../Lib/sdl3)
@@ -62,6 +65,7 @@ target_include_directories(${PROJECT_NAME}
   # ${MYLIB_HEADER}
    ${SDL3_HEADER}
    ${GLM_HEADER}
+   ${QUICKHULL_HEADER}
     PRIVATE
   # ${MYLIB_HEADER}
 )

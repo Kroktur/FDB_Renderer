@@ -17,6 +17,8 @@
 #include "Pipeline/RenderPath.h"
 #include "Core/LoadObj.h" 
 #include "Core/Relaxation.h"
+#include "Core/CreateSphere.h"
+
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -36,7 +38,7 @@
 
 #include <type_traits>
 #include <array>
-	
+#include <print>
 
 	
 
@@ -348,7 +350,7 @@
 		auto camera = FDB::Core::Camera();
 		auto transformCam = FDB::Core::Transform();
 		transformCam.LookAtDir({ 0,0,-1 });
-		transformCam.SetPosition({ 0,0,5 });
+		transformCam.SetPosition({ 0,0, 20});
 		camera.Update(transformCam.GetModelM());
 
 		std::vector<FDB::Core::lightData_t> lDatas;
@@ -405,7 +407,6 @@
 		//FDB::Pipeline::GraphicsPipeline basePipeline;
 
 		FDB::Render::SDLGraphicPipeline Grenderer(&window,size);
-		//Grenderer.SetResolutionMode(FDB::Render::ResolutionMode::Adaptative);
 		Uint64 lastTime = SDL_GetTicks();
 		std::uint32_t frameCount = 0;
 
@@ -413,103 +414,19 @@
 		int maxiteration = 0;
 		int lastiteration = 0;
 
-		
+		auto p3d = RelaxAlgo::createSphere();
 
-		//auto addFace = [&](glm::vec4 p0,
-		//	glm::vec4 p1,
-		//	glm::vec4 p2,
-		//	glm::vec4 p3,
-		//	glm::vec4 color)
-		//	{
-		//		unsigned int base = static_cast<unsigned int>(vertexList.size());
+		std::vector<glm::vec3> unit;
+		for (auto& p : p3d) unit.push_back(glm::normalize(p));
 
-		//		Transform::Vertex v0, v1, v2, v3;
-
-		//		v0.pos = p0;
-		//		v1.pos = p1;
-		//		v2.pos = p2;
-		//		v3.pos = p3;
-
-		//		v0.color = { 1.f,0.f,0.f,1.f };
-		//		v1.color = { 0.f,1.f,0.f,1.f };
-		//		v2.color = { 0.f,0.f,1.f,1.f };
-		//		v3.color = { 1.f,1.f,1.f,1.f };
-
-		//		vertexList.push_back(v0);
-		//		vertexList.push_back(v1);
-		//		vertexList.push_back(v2);
-		//		vertexList.push_back(v3);
-
-		//		// Deux triangles CCW vus de l'extérieur
-		//		indices.insert(indices.end(), {
-		//			base, base + 1, base + 2,
-		//			base, base + 2, base + 3
-		//			});
-		//	};
-
-		//auto P = [](float x, float y, float z) {
-		//	return glm::vec4(x, y, z, 1.f);
-		//	};
-
-		//// Face arrière : rouge
-		//addFace(P(-1, -1, -1), P(-1, 1, -1),
-		//	P(1, 1, -1), P(1, -1, -1),
-		//	{ 1.f, 0.f, 0.f, 1.f });
-
-		//// Face avant : vert
-		//addFace(P(-1, -1, 1), P(1, -1, 1),
-		//	P(1, 1, 1), P(-1, 1, 1),
-		//	{ 0.f, 1.f, 0.f, 1.f });
-
-		//// Face gauche : bleu
-		//addFace(P(-1, -1, -1), P(-1, -1, 1),
-		//	P(-1, 1, 1), P(-1, 1, -1),
-		//	{ 0.f, 0.f, 1.f, 1.f });
-
-		//// Face droite : jaune
-		//addFace(P(1, -1, -1), P(1, 1, -1),
-		//	P(1, 1, 1), P(1, -1, 1),
-		//	{ 1.f, 1.f, 0.f, 1.f });
-
-		//// Face du bas : magenta
-		//// Face du bas (-Y) : normale vers le bas
-		//addFace(
-		//	P(-1, -1, -1),
-		//	P(1, -1, -1),
-		//	P(1, -1, 1),
-		//	P(-1, -1, 1),
-		//	{ 0.f, 1.f, 1.f, 1.f }
-		//);
-
-		//// Face du haut (+Y) : normale vers le haut
-		//addFace(
-		//	P(-1, 1, 1),
-		//	P(1, 1, 1),
-		//	P(1, 1, -1),
-		//	P(-1, 1, -1),
-		//	{ 0.f, 1.f, 1.f, 1.f }
-		//);
-		KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
-
-		std::vector<glm::vec2> points;
-
-		KTR::Random::default_value_type seed { KTR::Random::default_seed_gen_type{}() };
-		KTR::Random::default_bit_gen_type gen(seed);
-		KTR::distrib::Distribution<float> distX(0.f, 800.f);
-		KTR::distrib::Distribution<float> distY(0.f, 600.f);
-
-		for (size_t i = 0; i < 1024; ++i)
-			points.push_back(glm::vec2{ distX(gen), distY(gen) });
+		auto sub = CreateSphere::TransformPointToTriangle(p3d);
+		sub = CreateSphere::applyNoise(unit, sub.indices, 20.0f, 5.0f, 5.5f);
 
 
-		/*std::vector<glm::vec2> points = {
-	{120,  80}, {350, 120}, {180, 240}, {600, 100},
-	{720, 200}, {400, 300}, {250, 400}, {100, 500},
-	{650, 450}, {500, 180}, {300, 200}, {330, 210},
-	{340, 205}, {520, 350}, {700, 520}, {150, 150},
-	{450, 480}, {580, 250}, {200, 350}, {750,  80}
-		};*/
-		//timer.Resume();
+
+		auto meshSphere = std::make_unique<FDB::Core::Mesh>();
+		meshSphere->subMeshes.push_back(std::move(sub));
+
 		while (!FDB::Sdl::Application::ShouldQuit() && !window.ShouldClose())
 		{
 			FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
@@ -542,38 +459,25 @@
 
 			transfrom.Rotate(0.01f,  FDB::Core::Axis::forward);
 
-			//pipeline.Draw(vertexList.data(), indices.data(), indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
 
 
 
-			//auto startP = std::chrono::high_resolution_clock::now();
+			auto startP = std::chrono::high_resolution_clock::now();
 			//auto actual = timer.GetTime();
 
 			auto subs = mesh->subMeshes;
+			auto subsSphere = meshSphere->subMeshes;
 			pipeline.BindVertexData(transfrom.GetModelM());
 			
-			//for(auto& sub : subs)
-				//pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
-			points = RelaxAlgo::relaxationAlgo(points, 800, 600);
-			
-			SDL_SetRenderDrawColor(Grenderer.m_renderer.GetSdlRenderer(), 0, 0, 0, 255);
-			SDL_RenderClear(Grenderer.m_renderer.GetSdlRenderer());
-			SDL_SetRenderDrawColor(Grenderer.m_renderer.GetSdlRenderer(), 255, 255, 255, 0);
+			for(auto& sub : subsSphere)
+				pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(),Grenderer.GetViewPort(),Grenderer.GetFrameBuffer());
 
-			for (const auto& point : points) {
-				SDL_RenderPoint(Grenderer.m_renderer.GetSdlRenderer(), point.x, point.y);
-			}
 
-			SDL_RenderPresent(Grenderer.m_renderer.GetSdlRenderer());
-			/*auto now = timer.GetTime();
-				std::cout << KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(now - actual).count() << "\n";*/
+			auto endP = std::chrono::high_resolution_clock::now();
 
-			//auto endP = std::chrono::high_resolution_clock::now();
+			auto result = endP - startP;
 
-			//auto result = endP - startP;
-
-		  //std::cout << result.count() << " \n";
-			//Grenderer.PresentRender();
+			Grenderer.PresentRender();
 		}
 		FDB::Sdl::Application::Destroy();
 		
