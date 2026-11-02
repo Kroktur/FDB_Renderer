@@ -11,6 +11,25 @@
 #include "Core/Mesh.h"
 #include "Pipeline/Options.h"
 
+// todo remove this include
+static  std::vector<std::uint32_t> overDraw = {};
+
+	static glm::vec3 OverdrawToColor(uint32_t count)
+	{
+		switch (count)
+		{
+		case 0: return glm::vec3(0.0f);
+		case 1: return glm::vec3(0.0f, 0.0f, 1.0f);
+		case 2: return glm::vec3(0.0f, 1.0f, 1.0f);
+		case 3: return glm::vec3(0.0f, 1.0f, 0.0f);
+		case 4: return glm::vec3(1.0f, 1.0f, 0.0f);
+		case 5: return glm::vec3(1.0f, 0.5f, 0.0f);
+		default: return glm::vec3(1.0f, 0.0f, 0.0f);
+		}
+	}
+#include <thread>
+#include "Core/ThreadPool.h"
+
 namespace FDB::Render
 {
 	struct BRDFHelper
@@ -40,123 +59,129 @@ namespace FDB::Render
 		template<bool disneyDiff = false >
 		 static FragmentShaderR_t FragmentShader(const FDB::Pipeline::fragment_input_t<FDB::Render::PBRFragment>& out, const fragmentShaderData& data)
 		 {
-			 static constexpr glm::vec3 ambientLight = glm::vec3(0.02f);
+			 //static constexpr glm::vec3 ambientLight = glm::vec3(0.02f);
 
-			 const auto& v = out.vertex;
-			 glm::vec2 dUvX = out.vertexDx.fragTexCord, dUvY = out.vertexDy.fragTexCord;
-			 
-			 glm::vec4 baseMap = FDB::Render::Sample::Execute(data.mat.baseColor, v.fragTexCord,dUvX,dUvY);
-			 glm::vec3 OMRMap = FDB::Render::Sample::Execute(data.mat.OMRMap, v.fragTexCord, dUvX, dUvY);
-			 glm::vec3 normalMap = FDB::Render::Sample::Execute(data.mat.normalMap, v.fragTexCord, dUvX, dUvY) * 2.0f - glm::vec4(1.0f);
-			 glm::vec3 emissiveMap = glm::pow(glm::vec3(FDB::Render::Sample::Execute(data.mat.emissiveMap, v.fragTexCord, dUvX, dUvY)), glm::vec3(2.2f));
-			 float emissiveFactor = data.mat.emissiveFactor;
+			 //const auto& v = out.vertex;
+			 //glm::vec2 dUvX = out.vertexDx.fragTexCord, dUvY = out.vertexDy.fragTexCord;
+			 //
+			 //glm::vec4 baseMap = FDB::Render::Sample::Execute(data.mat.baseColor, v.fragTexCord,dUvX,dUvY);
+			 //glm::vec3 OMRMap = FDB::Render::Sample::Execute(data.mat.OMRMap, v.fragTexCord, dUvX, dUvY);
+			 //glm::vec3 normalMap = FDB::Render::Sample::Execute(data.mat.normalMap, v.fragTexCord, dUvX, dUvY) * 2.0f - glm::vec4(1.0f);
+			 //glm::vec3 emissiveMap = glm::pow(glm::vec3(FDB::Render::Sample::Execute(data.mat.emissiveMap, v.fragTexCord, dUvX, dUvY)), glm::vec3(2.2f));
+			 //float emissiveFactor = data.mat.emissiveFactor;
 
-			 float occlusion = OMRMap.r;
-			 float metalness = OMRMap.b;
-			 float roughness = OMRMap.g;
+			 //float occlusion = OMRMap.r;
+			 //float metalness = OMRMap.b;
+			 //float roughness = OMRMap.g;
 
-			 glm::vec3 albedo = glm::pow(glm::vec3(baseMap) * glm::vec3(v.fragColor), glm::vec3(2.2f));
+			 //glm::vec3 albedo = glm::pow(glm::vec3(baseMap) * glm::vec3(v.fragColor), glm::vec3(2.2f));
 
-			 glm::mat3x3 TBN = glm::mat3x3(v.tangent, v.bitangent, v.normal);
-			 glm::vec3 normal = glm::normalize(TBN * normalMap);
+			 //glm::mat3x3 TBN = glm::mat3x3(v.tangent, v.bitangent, v.normal);
+			 //glm::vec3 normal = glm::normalize(TBN * normalMap);
 
-			 glm::vec3 result = albedo * (1 - metalness) * ambientLight * occlusion;
-			 glm::vec3 V = glm::normalize(v.eyePos - v.worldSpacePosition);
+			 //glm::vec3 result = albedo * (1 - metalness) * ambientLight * occlusion;
+			 //glm::vec3 V = glm::normalize(v.eyePos - v.worldSpacePosition);
 
-			 // BRDF constant
+			 //// BRDF constant
 
-			 // make sure a is not 0 to avoid divide by 0
-			 const float a = std::max(roughness * roughness, 0.001f);
-			 const float aSquared = a * a;
+			 //// make sure a is not 0 to avoid divide by 0
+			 //const float a = std::max(roughness * roughness, 0.001f);
+			 //const float aSquared = a * a;
 
-			 // TODO ask Charles multiple possibilities for k
-			 const float k = std::pow(roughness + 1.0f, 2.0f) / 8.0f;
-			 glm::vec3 F0 = BRDFHelper::F0(albedo, metalness);
+			 //// TODO ask Charles multiple possibilities for k
+			 //const float k = std::pow(roughness + 1.0f, 2.0f) / 8.0f;
+			 //glm::vec3 F0 = BRDFHelper::F0(albedo, metalness);
 
-			 // diff = mat albedo / pi
-			 glm::vec3 diff = glm::vec3(0.f);
+			 //// diff = mat albedo / pi
+			 //glm::vec3 diff = glm::vec3(0.f);
 
-			 if constexpr (!disneyDiff)
-			 {
-				 diff = BRDFHelper::LambertDiffuse(albedo);
-			 }
+			 //if constexpr (!disneyDiff)
+			 //{
+				// diff = BRDFHelper::LambertDiffuse(albedo);
+			 //}
 
-			 for (const auto& light : data.lights)
-			 {
-				 float rSquared = std::numeric_limits<float>::max();
-				 glm::vec3 L = {};
+			 //for (const auto& light : data.lights)
+			 //{
+				// float rSquared = std::numeric_limits<float>::max();
+				// glm::vec3 L = {};
 
-				 if (light.type == FDB::Core::LightType::Point)
-				 {
-					 glm::vec3 dir = light.pos - v.worldSpacePosition;
-					 rSquared = dot(dir, dir);
-					 L = glm::normalize(dir);
-				 }
-				 else if (light.type == FDB::Core::LightType::Spot)
-				 {
-					 glm::vec3 dir = light.pos - v.worldSpacePosition;
-					 rSquared = dot(dir, dir);
-					 L = glm::normalize(dir);
-				 }
-				 else
-				 {
-					 L = glm::normalize(-light.dir);
-				 }
+				// if (light.type == FDB::Core::LightType::Point)
+				// {
+				//	 glm::vec3 dir = light.pos - v.worldSpacePosition;
+				//	 rSquared = dot(dir, dir);
+				//	 L = glm::normalize(dir);
+				// }
+				// else if (light.type == FDB::Core::LightType::Spot)
+				// {
+				//	 glm::vec3 dir = light.pos - v.worldSpacePosition;
+				//	 rSquared = dot(dir, dir);
+				//	 L = glm::normalize(dir);
+				// }
+				// else
+				// {
+				//	 L = glm::normalize(-light.dir);
+				// }
 
-				 if (rSquared <= glm::epsilon<float>())
-					 continue;
+				// if (rSquared <= glm::epsilon<float>())
+				//	 continue;
 
-				 float NDL = std::max(glm::dot(normal, L), 0.0f);
-				 float NDV = std::max(glm::dot(normal, V), 0.0f);
+				// float NDL = std::max(glm::dot(normal, L), 0.0f);
+				// float NDV = std::max(glm::dot(normal, V), 0.0f);
 
-				 if (NDL <= 0.0f || NDV <= 0.0f)
-					 continue;
+				// if (NDL <= 0.0f || NDV <= 0.0f)
+				//	 continue;
 
-				 glm::vec3 H = glm::normalize(L + V);
-				 float VDH = std::max(glm::dot(V, H), 0.0f);
-				 float NDH = std::max(glm::dot(normal, H), 0.0f);
+				// glm::vec3 H = glm::normalize(L + V);
+				// float VDH = std::max(glm::dot(V, H), 0.0f);
+				// float NDH = std::max(glm::dot(normal, H), 0.0f);
 
-				 glm::vec3 F = BRDFHelper::F(F0, VDH);
-				 float D = BRDFHelper::D(NDH, aSquared);
-				 float G = BRDFHelper::G(NDV, k) * BRDFHelper::G(NDL, k);
+				// glm::vec3 F = BRDFHelper::F(F0, VDH);
+				// float D = BRDFHelper::D(NDH, aSquared);
+				// float G = BRDFHelper::G(NDV, k) * BRDFHelper::G(NDL, k);
 
-				 glm::vec3 Kd = (glm::vec3(1.f) - F) * (1.f - metalness);
-				 glm::vec3 spec = (D * G * F) / (4.0f * NDV * NDL);
-				 spec *= glm::vec3(light.specColor);
+				// glm::vec3 Kd = (glm::vec3(1.f) - F) * (1.f - metalness);
+				// glm::vec3 spec = (D * G * F) / (4.0f * NDV * NDL);
+				// spec *= glm::vec3(light.specColor);
 
 
-				 if  constexpr (disneyDiff)
-				 {
-					 float FD90 = BRDFHelper::FD90(roughness, VDH);
-					 diff = BRDFHelper::DisneyDiffuse(albedo, FD90, NDL, NDV);
-				 }
+				// if  constexpr (disneyDiff)
+				// {
+				//	 float FD90 = BRDFHelper::FD90(roughness, VDH);
+				//	 diff = BRDFHelper::DisneyDiffuse(albedo, FD90, NDL, NDV);
+				// }
 
-				 float E = 0.0f;
-				 if (light.type == FDB::Core::LightType::Point)
-				 {
-					 E = light.intensity / (4.0f * glm::pi<float>() * rSquared);
-				 }
-				 else if (light.type == FDB::Core::LightType::Dir)
-				 {
-					 E = light.intensity;
-				 }
-				 else
-				 {
-					 float spotAngle = glm::dot(glm::normalize(-light.dir), L);
-					 float cosInner = std::cos(light.openAngle);
-					 float cosOuter = std::cos(light.openAngle + light.AdditionalSmooth);
-					 float spotAttenuation = glm::smoothstep(cosOuter, cosInner, spotAngle);
-					 float attenuation = light.intensity / (4.0f * glm::pi<float>() * rSquared);
-					 E = attenuation * spotAttenuation;
-				 }
-				 result += (Kd * diff + spec) * glm::vec3(light.color) * NDL * E;
-			 }
-			 result += emissiveMap * emissiveFactor;
-			 result = result / (result + glm::vec3(1.f));
-			 result = glm::pow(result, glm::vec3(1.f / 2.2f));
-			 glm::vec2 uv = glm::max(out.vertexDx.fragTexCord, out.vertexDy.fragTexCord);
-			// return FragmentShaderR_t::Color(glm::vec4{ uv * glm::vec2(data.mat.baseColor->mipLevels[0].size),0,1 });
-			 return FragmentShaderR_t::Color(glm::vec4(result, 1.0f));
+				// float E = 0.0f;
+				// if (light.type == FDB::Core::LightType::Point)
+				// {
+				//	 E = light.intensity / (4.0f * glm::pi<float>() * rSquared);
+				// }
+				// else if (light.type == FDB::Core::LightType::Dir)
+				// {
+				//	 E = light.intensity;
+				// }
+				// else
+				// {
+				//	 float spotAngle = glm::dot(glm::normalize(-light.dir), L);
+				//	 float cosInner = std::cos(light.openAngle);
+				//	 float cosOuter = std::cos(light.openAngle + light.AdditionalSmooth);
+				//	 float spotAttenuation = glm::smoothstep(cosOuter, cosInner, spotAngle);
+				//	 float attenuation = light.intensity / (4.0f * glm::pi<float>() * rSquared);
+				//	 E = attenuation * spotAttenuation;
+				// }
+				// result += (Kd * diff + spec) * glm::vec3(light.color) * NDL * E;
+			 //}
+			 //result += emissiveMap * emissiveFactor;
+			 //result = result / (result + glm::vec3(1.f));
+			 //result = glm::pow(result, glm::vec3(1.f / 2.2f));
+			 //return FragmentShaderR_t::Color(glm::vec4(result, 1.0f));
+				uint32_t index = out.pixel.y * 640 + out.pixel.x;
+
+				std::atomic_ref<uint32_t> counter(overDraw[index]);
+				counter.fetch_add(1, std::memory_order_relaxed);
+
+return FragmentShaderR_t::Color(
+	glm::vec4(OverdrawToColor(counter.load()), 1.0f)
+);
 		 }
 	};
 }

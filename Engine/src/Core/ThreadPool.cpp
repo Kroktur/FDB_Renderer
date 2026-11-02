@@ -2,6 +2,9 @@
 
 #include <iostream>
 
+//TODO remove this include
+#include "KTR/Tools/KTR_Random.h"
+
 namespace FDB::Core
 {
 	JobPool::JobPool(std::uint32_t threadCount)
@@ -37,12 +40,25 @@ namespace FDB::Core
 	void JobPool::WaitIdle()
 	{
 		std::unique_lock<std::mutex> lock(m_mutex);
-		m_idleCv.wait(lock, [this] { return m_jobCount == 0; });
+		m_idleCv.wait(lock, [this] { return m_jobCount.load() == 0; });
 	}
 
 	void JobPool::WorkerLoop(std::stop_token token)
 	{
+
+		KTR::Random::default_bit_dist_type<float> dist(0, 1.f);
+		KTR::Random::default_seed_gen_type seedGen;
+		KTR::Random::default_bit_gen_type gen(seedGen());
+		threadColor = glm::vec4(dist(gen), dist(gen), dist(gen), 1.0f);	
+		{
+			std::scoped_lock<std::mutex> lock(m_mutex);
+			std::cout << "Thread: " << std::this_thread::get_id()
+				<< " Color: " << threadColor.r << ", "
+				<< threadColor.g << ", " << threadColor.b << '\n';
+
+		}
 		job_t task = nullptr;
+	
 		while (!token.stop_requested())
 		{
 			{
@@ -55,11 +71,9 @@ namespace FDB::Core
 				m_jobs.pop_front();
 			}
 			task();
-			{
-				std::scoped_lock<std::mutex> lock(m_mutex);
+			
 				if (--m_jobCount == 0)
 					m_idleCv.notify_all();
-			}
 		}
 		std::cout << "Thread " << std::this_thread::get_id() << " exiting\n";
 	}

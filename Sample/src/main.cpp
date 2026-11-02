@@ -332,7 +332,9 @@
 	public:
 		void Render(FDB::Core::JobPool& pool) override
 		{
-			
+			//TODO remove 
+			overDraw.resize(m_renderer->GetViewPort().height * m_renderer->GetViewPort().width);
+			std::fill(overDraw.begin(), overDraw.end(), 0);
 
 			m_pipeline.BindVInData(m_camera.GetData());
 			FDB::Render::fragmentShaderData outD{ m_material  ,m_lDatas };

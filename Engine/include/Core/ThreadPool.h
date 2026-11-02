@@ -5,6 +5,16 @@
 #include <mutex>
 #include <thread>
 
+//TODO remove this include
+#include <GLM/vec4.hpp>
+inline thread_local glm::vec4 threadColor;
+
+struct MAPTHREAD
+{
+	static std::unordered_map<std::thread::id, glm::vec4> threadColorMap;
+};
+inline std::unordered_map<std::thread::id, glm::vec4> MAPTHREAD::threadColorMap = {};
+
 namespace FDB::Core
 {
 	using job_t = std::function<void()>;
@@ -26,7 +36,7 @@ namespace FDB::Core
 	private:
 		std::vector<std::jthread> m_threads;
 		std::deque<job_t> m_jobs;
-		std::uint64_t m_jobCount = 0;
+		std::atomic<std::uint64_t> m_jobCount = 0;
 		std::condition_variable m_jobCv, m_idleCv;
 		std::mutex m_mutex;
 

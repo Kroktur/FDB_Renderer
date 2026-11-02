@@ -105,7 +105,7 @@ namespace FDB::Pipeline
 		using DepthT = RasterizerOpt::depth_t;
 		using cullType = RasterizerOpt::cull_t;
 		using writeT = RasterizerOpt::write_t;
-		using rasterizer_t = TriangleRasterizer < vertexOut, vOut_data_t, fragmentShader, 64, cullType, blendT, DepthT, writeT > ;
+		using rasterizer_t = TriangleRasterizer < vertexOut, vOut_data_t, fragmentShader, 8, cullType, blendT, DepthT, writeT > ;
 
 
 
