@@ -26,9 +26,9 @@ namespace FDB::Render
 
 		void ClearColor(const Color::RGBA8888& color);
 
-		void BeginRender(const FDB::Rect<std::int32_t>& viewPort, const Color::RGBAFloat& color = Color::defaultFloat, float z = 1.f);
+		void BeginRender(const FDB::Rect<std::int32_t>& viewPort, const Color::RGBA8888& color = Color::default8, float z = 1.f);
 
-		void BeginRender(const Color::RGBAFloat& color = Color::defaultFloat, float z = 1.f);
+		void BeginRender(const Color::RGBA8888& color = Color::default8, float z = 1.f);
 
 		void PresentRender(Core::jobPool_t& pool);
 
@@ -51,7 +51,7 @@ namespace FDB::Render
 			return &m_renderer;
 		}
 	private:
-		void PrivateBegin(const Color::RGBAFloat& color, float z);
+		void PrivateBegin(const Color::RGBA8888& color, float z);
 
 		void SyncResolution();
 

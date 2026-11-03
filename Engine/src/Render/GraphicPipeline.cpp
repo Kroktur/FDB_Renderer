@@ -29,14 +29,14 @@ namespace FDB::Render
 		m_renderer.Clear(color);
 	}
 
-	void SDLGraphicPipeline::BeginRender(const FDB::Rect<std::int32_t>& viewPort, const Color::RGBAFloat& color,
+	void SDLGraphicPipeline::BeginRender(const FDB::Rect<std::int32_t>& viewPort, const Color::RGBA8888& color,
 		float z)
 	{
 		this->PrivateBegin(color, z);
 		m_viewPort = viewPort;
 	}
 
-	void SDLGraphicPipeline::BeginRender(const Color::RGBAFloat& color, float z)
+	void SDLGraphicPipeline::BeginRender(const Color::RGBA8888& color, float z)
 	{
 		this->PrivateBegin(color, z);
 		m_viewPort.x = 0;
@@ -52,25 +52,12 @@ namespace FDB::Render
 		auto* cBuffer = m_frameBuffer.colorBuffer.data;
 		std::size_t totSize = m_frameBuffer.atomicBuffer.size.x * m_frameBuffer.atomicBuffer.size.y;
 
-		for (std::size_t i = 0 ; i < totSize ; i += blockSize)
+		for (std::size_t i = 0 ; i < totSize ; ++i)
 		{
 			std::size_t count = std::min(blockSize, totSize - i);
-			auto* startCaBuffer = aCBuffer + i;
-			auto* startCBuffer = cBuffer + i;
-			pool.PushJob([startCaBuffer, startCBuffer, count]()mutable {
-				for (std::size_t j = 0; j < count; ++j) {
-					Pipeline::Pixel pixel = startCaBuffer->load(std::memory_order_acquire);
-					pixel.color *= 255.f;
-					const std::uint32_t r = static_cast<std::uint32_t>(pixel.color.r);
-					const std::uint32_t g = static_cast<std::uint32_t>(pixel.color.g);
-					const std::uint32_t b = static_cast<std::uint32_t>(pixel.color.b);
-					const std::uint32_t a = static_cast<std::uint32_t>(pixel.color.a);
-					*startCBuffer = r | (g << 8) | (b << 16) | (a << 24);
-					++startCaBuffer;
-					++startCBuffer;
-				}
-			});
-
+			*cBuffer =  static_cast<std::uint32_t>(*aCBuffer);
+			++aCBuffer;
+			++cBuffer;
 		}
 		pool.WaitIdle();
 		m_texture.Update(m_frameBuffer.colorBuffer.data, m_currentResolution.x * static_cast<int>(sizeof(std::uint32_t)));
@@ -127,7 +114,7 @@ namespace FDB::Render
 		return m_frameBuffer;
 	}
 
-	void SDLGraphicPipeline::PrivateBegin(const Color::RGBAFloat& color, float z)
+	void SDLGraphicPipeline::PrivateBegin(const Color::RGBA8888& color, float z)
 	{
 		this->SyncResolution();
 		m_pipeline.BeginRender(color, z);
@@ -141,7 +128,7 @@ namespace FDB::Render
 		m_dirtyResolution = false;
 		m_currentResolution = m_nextResolution;
 		m_pipeline.SetSize(m_currentResolution);
-		m_texture = FDB::Sdl::Texture(m_renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, m_currentResolution);
+		m_texture = FDB::Sdl::Texture(m_renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_STREAMING, m_currentResolution);
 	}
 
 	void SDLGraphicPipeline::CallBack(const Sdl::Event::WindowResize& event)

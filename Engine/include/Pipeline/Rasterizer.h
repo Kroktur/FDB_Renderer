@@ -17,6 +17,9 @@
 #include "Core/Rect.h"
 #include "Core/ThreadPool.h"
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
 
 namespace FDB::Pipeline
 {
@@ -302,7 +305,7 @@ namespace FDB::Pipeline
 			glm::vec<2, std::int32_t> pixel = {};
 			float fixedW = 0;
 			float fixedZ = 0;
-			std::atomic<Pixel>* pixelImagePtr = nullptr;
+			atomicPixel_t* pixelImagePtr = nullptr;
 		};
 
 
@@ -369,14 +372,14 @@ namespace FDB::Pipeline
 				blockSetup.block.blockSize.y = std::min(blockDim.y, setup.box.max.y - blockY + 1);
 				for (std::int32_t blockX = setup.box.min.x; blockX <= setup.box.max.x; blockX += blockDim.x)
 				{
-					/*pool.PushJob([blockX, blockY, setup, blockSetup, pushConstants, &fragmentOut, &image, &pool]()mutable
-					{*/
+					pool.PushJob([blockX, blockY, setup, blockSetup, pushConstants, &fragmentOut, &image, &pool]()mutable
+					{
 							blockSetup.block.blockSize.x = std::min(blockDim.x, setup.box.max.x - blockX + 1);
 							blockSetup.block.blockOrigin = { blockX, blockY };
 
 							deltaData_t<glm::vec<3, fixed_value_t>> fixedBlockEdgeData = TriangleRasterizer::InitializeStepEdgeData(blockSetup.block.blockOrigin, setup.box, blockSetup.block.blockSize, setup.fixedBaseEdgeData);
 							if (TriangleRasterizer::IsBlock<false>(fixedBlockEdgeData))
-								continue;
+								return;
 
 
 							TriangleRasterizer::UpdateLinearData(setup.fixedBaseInvW, fixedBlockEdgeData, setup.fixedInvArea, blockSetup.fixedWData);
@@ -392,7 +395,7 @@ namespace FDB::Pipeline
 							{
 								TriangleRasterizer::PixelLoop(setup.triangle, setup.topLeftRule, fixedBlockEdgeData, blockSetup, image, pushConstants, fragmentOut, pool);
 							}
-					/*});*/
+					});
 
 
 
@@ -487,83 +490,178 @@ namespace FDB::Pipeline
 		}
 	private:
 		
+		//	static void ApplyFragment(const triangle_t& triangle, const FragmentSetup& applySetup, const BlockSetup& blockSetup, const pushConstant_data_t& pushConstants, const fragment_out_t& fragmentOut)
+		//{
+		//	static constexpr fragmentState_t fragOutPut = fragOutput_v<fragment,decltype(fragmentShader), const PushConstantData& ,const VOutData&>;
+
+		//	// early z test if possible
+		//	if constexpr (fragOutPut != fragmentState_t::DepthChange && depthT::zTestEnabled_v)
+		//	{
+		//		Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
+		//		if (!depthT::PassDepthTest(applySetup.fixedZ, oldPixel.z))
+		//			return;
+		//	}
+		//	// process fragment and create pixel
+		//	fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader), const PushConstantData&,const VOutData&>> out = TriangleRasterizer::ExecuteFragmentShader(applySetup, blockSetup, pushConstants, fragmentOut);
+		//	Pixel pixel{ applySetup.fixedZ, glm::vec4(0.f)};
+
+		//	// verify if need discard
+		//	if constexpr (fragOutPut != fragmentState_t::Keep)
+		//	{
+		//		if (out.discard)
+		//			return;
+		//	}
+		//	// assign out.z if needed
+		//	if constexpr (fragOutPut == fragmentState_t::DepthChange)
+		//		pixel.z = out.z;
+
+		//	// if z test is enable test it for the depth change to avoid useless compare exchange
+		//	if constexpr (fragOutPut == fragmentState_t::DepthChange && depthT::zTestEnabled_v)
+		//	{
+		//		Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
+		//		if (!depthT::PassDepthTest(pixel.z, oldPixel.z))
+		//			return;
+		//	}
+
+		//	Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
+		//	pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
+
+		//	// if no z write
+		//	if constexpr (!depthT::zWriteEnable_v)
+		//	{
+		//		// loop infinite
+		//		for (;;)
+		//		{
+		//			// try to emplace data
+		//			pixel.z = oldPixel.z;
+		//			if (applySetup.pixelImagePtr->compare_exchange_weak(
+		//				oldPixel,
+		//				pixel,
+		//				std::memory_order_relaxed,
+		//				std::memory_order_relaxed))
+		//			{
+		//				return;
+		//			}
+		//			pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
+
+		//		}
+		//	}
+		//	else
+		//	{
+		//		// loop while z is valid
+		//		while (depthT::PassDepthTest(pixel.z, oldPixel.z))
+		//		{
+		//			if (applySetup.pixelImagePtr->compare_exchange_weak(
+		//				oldPixel,
+		//				pixel,
+		//				std::memory_order_relaxed,
+		//				std::memory_order_relaxed))
+		//			{
+		//				return;
+		//			}
+		//			pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
+
+		//		}
+		//	}
+		//}
 			static void ApplyFragment(const triangle_t& triangle, const FragmentSetup& applySetup, const BlockSetup& blockSetup, const pushConstant_data_t& pushConstants, const fragment_out_t& fragmentOut)
-		{
-			static constexpr fragmentState_t fragOutPut = fragOutput_v<fragment,decltype(fragmentShader), const PushConstantData& ,const VOutData&>;
-
-			// early z test if possible
-			if constexpr (fragOutPut != fragmentState_t::DepthChange && depthT::zTestEnabled_v)
 			{
-				Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
-				if (!depthT::PassDepthTest(applySetup.fixedZ, oldPixel.z))
-					return;
-			}
-			// process fragment and create pixel
-			fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader), const PushConstantData&,const VOutData&>> out = TriangleRasterizer::ExecuteFragmentShader(applySetup, blockSetup, pushConstants, fragmentOut);
-			Pixel pixel{ applySetup.fixedZ, glm::vec4(0.f)};
-
-			// verify if need discard
-			if constexpr (fragOutPut != fragmentState_t::Keep)
-			{
-				if (out.discard)
-					return;
-			}
-			// assign out.z if needed
-			if constexpr (fragOutPut == fragmentState_t::DepthChange)
-				pixel.z = out.z;
-
-			// if z test is enable test it for the depth change to avoid useless compare exchange
-			if constexpr (fragOutPut == fragmentState_t::DepthChange && depthT::zTestEnabled_v)
-			{
-				Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
-				if (!depthT::PassDepthTest(pixel.z, oldPixel.z))
-					return;
-			}
-
-			Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
-			pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
-
-			// if no z write
-			if constexpr (!depthT::zWriteEnable_v)
-			{
-				// loop infinite
-				for (;;)
+				static constexpr fragmentState_t fragOutPut = fragOutput_v<fragment, decltype(fragmentShader), const PushConstantData&, const VOutData&>;
+				// early z test if possible
+				if constexpr (fragOutPut != fragmentState_t::DepthChange && depthT::zTestEnabled_v)
 				{
-					// try to emplace data
-					pixel.z = oldPixel.z;
-					if (applySetup.pixelImagePtr->compare_exchange_weak(
-						oldPixel,
-						pixel,
-						std::memory_order_relaxed,
-						std::memory_order_relaxed))
-					{
+					// es ce qu'il faut load ave
+					atomicPixel_t current = *applySetup.pixelImagePtr;
+					// TODO load thread safe 
+					if (!depthT::PassDepthTest(applySetup.fixedZ, std::bit_cast<float>(static_cast<std::uint32_t>(current >> 32))))
 						return;
-					}
-					pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
+				}
+				// process fragment and create pixel
+				fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader), const PushConstantData&, const VOutData&>> out = TriangleRasterizer::ExecuteFragmentShader(applySetup, blockSetup, pushConstants, fragmentOut);
+				std::uint32_t tmpColor = static_cast<std::uint32_t>(out.color.r * 255.f) << 24 | static_cast<std::uint32_t>(out.color.g * 255.f) << 16 | static_cast<std::uint32_t>(out.color.b * 255.f) << 8 | static_cast<std::uint32_t>(out.color.a * 255.f);
+				atomicPixel_t pixel{ static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(applySetup.fixedZ)) << 32 | static_cast<std::uint64_t>(tmpColor) };
 
+				// verify if need discard
+				if constexpr (fragOutPut != fragmentState_t::Keep)
+				{
+					if (out.discard)
+						return;
+				}
+
+				// assign out.z if needed
+				if constexpr (fragOutPut == fragmentState_t::DepthChange)
+					pixel = pixel & 0x00000000FFFFFFFFULL | static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(out.z)) << 32;
+
+				atomicPixel_t current = *applySetup.pixelImagePtr;
+
+				if constexpr (fragOutPut == fragmentState_t::DepthChange && depthT::zTestEnabled_v)
+				{
+
+					if (!depthT::PassDepthTest(std::bit_cast<float>(static_cast<std::uint32_t>(pixel >> 32)), std::bit_cast<float>(static_cast<std::uint32_t>(current >> 32))))
+						return;
+				}
+				std::uint32_t color = TriangleRasterizer::SetColor(tmpColor, static_cast<std::uint32_t>(current));
+				pixel = atomicPixel_t{ (pixel & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+				auto previous = current;
+				if constexpr(!depthT::zTestEnabled_v && !depthT::zWriteEnable_v)
+				{
+					for (;;)
+					{
+						auto previousValue = InterlockedCompareExchangeNoFence64(reinterpret_cast<volatile LONG64*>(applySetup.pixelImagePtr)
+							, static_cast<LONG64>(pixel)
+							, static_cast<LONG64>(previous));
+						if (previousValue == static_cast<LONG64>(previous))
+							return;
+						previous = static_cast<atomicPixel_t>(previousValue);
+
+						pixel = atomicPixel_t{ (previousValue & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+					}
+				}
+				if constexpr (!depthT::zTestEnabled_v && depthT::zWriteEnable_v)
+				{
+					for (;;)
+					{
+						auto previousValue = InterlockedCompareExchangeNoFence64(reinterpret_cast<volatile LONG64*>(applySetup.pixelImagePtr)
+							, static_cast<LONG64>(pixel)
+							, static_cast<LONG64>(previous));
+						if (previousValue == static_cast<LONG64>(previous))
+							return;
+						previous = static_cast<atomicPixel_t>(previousValue);
+						pixel = atomicPixel_t{ (pixel & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+					}
+				}
+				if constexpr (depthT::zTestEnabled_v && !depthT::zWriteEnable_v)
+				{
+					while (depthT::PassDepthTest(std::bit_cast<float>(static_cast<std::uint32_t>(pixel >> 32)), std::bit_cast<float>(static_cast<std::uint32_t>(previous >> 32))))
+					{
+						auto previousValue = InterlockedCompareExchangeNoFence64(reinterpret_cast<volatile LONG64*>(applySetup.pixelImagePtr)
+							, static_cast<LONG64>(pixel)
+							, static_cast<LONG64>(previous));
+						if (previousValue == static_cast<LONG64>(previous))
+							return;
+						previous = static_cast<atomicPixel_t>(previousValue);
+
+						pixel = atomicPixel_t{ (previousValue & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+					}
+				}
+				if constexpr (depthT::zTestEnabled_v && depthT::zWriteEnable_v)
+				{
+					while (depthT::PassDepthTest(std::bit_cast<float>(static_cast<std::uint32_t>(pixel >> 32)), std::bit_cast<float>(static_cast<std::uint32_t>(previous >> 32))))
+					{
+						auto previousValue = InterlockedCompareExchangeNoFence64(reinterpret_cast<volatile LONG64*>(applySetup.pixelImagePtr)
+							, static_cast<LONG64>(pixel)
+							, static_cast<LONG64>(previous));
+						if (previousValue == static_cast<LONG64>(previous))
+							return;
+						previous = static_cast<atomicPixel_t>(previousValue);
+						pixel = atomicPixel_t{ (pixel & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+
+					}
 				}
 			}
-			else
-			{
-				// loop while z is valid
-				while (depthT::PassDepthTest(pixel.z, oldPixel.z))
-				{
-					if (applySetup.pixelImagePtr->compare_exchange_weak(
-						oldPixel,
-						pixel,
-						std::memory_order_relaxed,
-						std::memory_order_relaxed))
-					{
-						return;
-					}
-					pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
-
-				}
-			}
-		}
-		static glm::vec4 SetColor(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& dstColor)
+		static std::uint32_t SetColor(std::uint32_t srcColor, std::uint32_t dstColor)
 		{
-			glm::vec<4, float> realColor = glm::clamp(blendT::Blend(srcColor, dstColor), 0.f, 1.f);
+			std::uint32_t realColor = blendT::Blend(srcColor, dstColor);
 			return  writeT::Apply(realColor, dstColor);
 		}
 

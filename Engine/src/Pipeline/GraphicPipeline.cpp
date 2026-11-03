@@ -1,5 +1,7 @@
 #include "Pipeline/GraphicPipeline.h"
 
+#include <bit>
+
 FDB::Pipeline::GraphicsPipeline::GraphicsPipeline(const glm::vec<2, std::int32_t>& size) : m_size(size)
 {
 	this->Resize(m_size);
@@ -16,11 +18,11 @@ void FDB::Pipeline::GraphicsPipeline::SetSize(const glm::vec<2, std::int32_t>& s
 
 }
 
-void FDB::Pipeline::GraphicsPipeline::BeginRender(const Color::RGBAFloat& color, float z)
+void FDB::Pipeline::GraphicsPipeline::BeginRender(const Color::RGBA8888& color, float z)
 {
-	Color::RGBA8888 color8 = Color::ToARGB8888(color);
-	m_colorBuffer.Clear(color8.r | (color8.g << 8) | (color8.b << 16) | (color8.a << 24));
-	m_pixelBuffer.Clear(Pixel{z,color});
+	std::uint32_t zbits = std::bit_cast<std::uint32_t>(z);
+	m_colorBuffer.Clear(color.r << 24 | (color.g << 16) | (color.b << 8) | (color.a));
+	m_pixelBuffer.Clear( static_cast<std::uint64_t>(zbits) << 32|static_cast<std::uint64_t>(color.r) << 24 | static_cast<std::uint64_t>(color.g) << 16 | static_cast<std::uint64_t>(color.b) << 8 | static_cast<std::uint64_t>(color.a));
 }
 
 glm::vec<2, std::int32_t> FDB::Pipeline::GraphicsPipeline::GetSize() const

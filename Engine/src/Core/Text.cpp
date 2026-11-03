@@ -159,10 +159,10 @@ void FDB::Core::Text::Upload()
 
 
 			// add the vertices 
-			m_vertices.push_back({ {minX, minY,0,0},     {glyph.min.x, glyph.min.y} ,{minX + 0.5f, minY + 0.5f} });
-			m_vertices.push_back({ {maxX, minY,0,0},     {glyph.max.x, glyph.min.y},{maxX + 0.5f, minY + 0.5f} });
-			m_vertices.push_back({ {maxX, maxY,0,0}, {glyph.max.x, glyph.max.y} ,{maxX + 0.5f, maxY + 0.5f} });
-			m_vertices.push_back({ {minX, maxY,0,0}, {glyph.min.x, glyph.max.y} ,{minX + 0.5f, maxY + 0.5f} });
+			m_vertices.push_back({ {minX, -minY}, {glyph.min.x, glyph.min.y}, {minX + 0.5f, 0.5f - minY} });
+			m_vertices.push_back({ {maxX, -minY}, {glyph.max.x, glyph.min.y}, {maxX + 0.5f, 0.5f - minY} });
+			m_vertices.push_back({ {maxX, -maxY}, {glyph.max.x, glyph.max.y}, {maxX + 0.5f, 0.5f - maxY} });
+			m_vertices.push_back({ {minX, -maxY}, {glyph.min.x, glyph.max.y}, {minX + 0.5f, 0.5f - maxY} });
 
 			// add the index 
 			m_indices.push_back(indexOffset + 0);

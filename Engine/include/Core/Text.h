@@ -1,21 +1,14 @@
-#pragma once
+#ifndef FDBCORETEXTF
+#define FDBCORETEXTF
 #include "Core/Font.h"
 #include <vector>
 
+#include "Font.h"
+#include "Ui.h"
 
-
-
-struct VertexUi {
-	glm::vec4 position;
-	glm::vec2 uv;
-	glm::vec2 uv2;
-};
 
 namespace FDB::Core
 {
-
-
-
 	struct bufferData
 	{
 		VertexUi* vertices;
@@ -23,9 +16,9 @@ namespace FDB::Core
 		std::size_t indicesCount;
 	};
 
-
 	struct Text
 	{
+	public:
 		enum class Align
 		{
 			Center,
@@ -33,18 +26,24 @@ namespace FDB::Core
 			Right
 		};
 		Text() = default;
+		Text(const Text&) = default;
+		Text(Text&&) noexcept = default;
+		Text& operator=(const Text&) = default;
+		Text& operator=(Text&&) noexcept = default;
+		~Text() = default;
+	public:
 
 		void SetText(const std::string& text);
 		void SetAlign(const Align& align);
-		std::string GetText() const;
-		Align GetAlign() const;
-		bufferData GetBufferData();
+		[[nodiscard]] std::string GetText() const;
+		[[nodiscard]] Align GetAlign() const;
 		void SetTexture(FDB::Core::Texture* texture);
-		FDB::Core::Texture* GetTexture() const;
+		[[nodiscard]] FDB::Core::Texture* GetTexture() const;
 		void SetFont(AtlasFont* font);
-		AtlasFont* GetFont() const;
+		[[nodiscard]] AtlasFont* GetFont() const;
+		[[nodiscard]] bufferData GetBufferData();
 	private:
-		static float Offset(const Align& align, float totalAdvance, float currentAdvance);
+		[[nodiscard]] static float Offset(const Align& align, float totalAdvance, float currentAdvance);
 		std::vector<VertexUi> m_vertices;
 		std::vector<uint32_t> m_indices;
 		void Upload();
@@ -56,7 +55,4 @@ namespace FDB::Core
 	};
 }
 
-struct TMP2DSHADERS
-{
-	
-};
+#endif

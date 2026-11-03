@@ -69,7 +69,7 @@ FDB::Core::Texture* FDB::Core::AtlasFont::GetTexture()
     return &m_texture;
 }
 
-std::unique_ptr<FDB::Core::AtlasFont> FDB::Core::AtlasFontHelper::LoadFont(const std::string& filePath, float res)
+std::unique_ptr<FDB::Core::AtlasFont> FDB::Core::AtlasFontHelper::LoadFont(const std::filesystem::path& filePath, float res)
 {
     std::vector<unsigned char> fontBuffer;
     auto size = glm::ivec2{ 512 * res,512 * res };
@@ -77,7 +77,7 @@ std::unique_ptr<FDB::Core::AtlasFont> FDB::Core::AtlasFontHelper::LoadFont(const
 
     std::ifstream file(filePath, std::ios::binary | std::ios::ate);
     if (!file.is_open())
-        throw std::runtime_error("Failed to open font file: " + filePath);
+        throw std::runtime_error("Failed to open font file: " + filePath.string());
 
     size_t sizeFile = file.tellg();
     fontBuffer.resize(sizeFile);
@@ -129,10 +129,7 @@ std::unique_ptr<FDB::Core::AtlasFont> FDB::Core::AtlasFontHelper::LoadFont(const
     for (size_t i = 0; i < size.x * size.y; ++i)
     {
         unsigned char a = atlas[i];
-        rgbaAtlas[i].r = 255;
-        rgbaAtlas[i].g = 255;
-        rgbaAtlas[i].b = 255;
-        rgbaAtlas[i].a = a;
+        rgbaAtlas[i] = glm::u8vec4(255, 255, 255, atlas[i]);
     }
 
 

@@ -6,20 +6,10 @@
 
 namespace FDB::Pipeline 
 {
-	struct Pixel
-	{
-		Pixel(float z,const glm::vec4 color_) : z(z),color(color_){}
-		Pixel() = default;
-		Pixel(const Pixel&) = default;
-		Pixel(Pixel&&) noexcept = default;
-		Pixel& operator=(const Pixel&) = default;
-		Pixel& operator=(Pixel&&) noexcept = default;
-		~Pixel() = default;
-		float z = 0;
-		glm::vec4 color= glm::vec4(0,0,0,1);
-	};
+	using pixel = std::uint64_t;
+	
 
-	using atomicPixel_t = std::atomic<Pixel>;
+	using atomicPixel_t = pixel;
 
 	struct FrameBuffer
 	{

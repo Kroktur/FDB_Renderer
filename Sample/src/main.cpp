@@ -11,7 +11,7 @@
 	#include "SDL/Window.h"
 	#include "SDL/Texture.h"
 	#include "SDL3/SDL_timer.h"
-
+#include "Core/Font.h"
 #include "GLM/detail/type_vec1.hpp"
 #include "Pipeline/Atribute.h"
 #include "Pipeline/RenderPath.h"
@@ -67,18 +67,22 @@
 #include "Render/GraphicPipeline.h"
 
 #include "Core/Material.h"
+#include "Core/Text.h"
 #include "Core/ThreadPool.h"
+#include "Core/Transform2d.h"
 #include "Render/PBRFragment.h"
 #include "Render/PBRShaders.h"
 #include "Render/Sample.h"
 
 #include "KTR/Tools/KTR_Chrono.h"
+#include "Render/UiFragment.h"
+#include "Render/UiShaders.h"
 
-	static constexpr std::int32_t windowWidth = 640;
-	static constexpr std::int32_t windowHeight = 360;
+	static constexpr std::int32_t renderWidth = 640 / 2;
+	static constexpr std::int32_t renderHeight = 360 / 2;
 
-	static constexpr std::int32_t renderWidth = 1920;
-	static constexpr std::int32_t renderHeight = 1080;
+	static constexpr std::int32_t windowWidth = 1920;
+	static constexpr std::int32_t windowHeight = 1080;
 
 	namespace FDB::Core
 	{
@@ -138,9 +142,9 @@
 		struct GameLoop
 		{
 		public:
-			GameLoop(const std::string& name,const glm::uvec2& size) : m_window(name.c_str(), size, SDL_WINDOW_RESIZABLE),m_pool()
+			GameLoop(const std::string& name,const glm::uvec2& size,const glm::vec2& renderSize) : m_window(name.c_str(), size, SDL_WINDOW_RESIZABLE),m_pool()
 			{
-				m_renderer = std::make_unique<FDB::Render::SDLGraphicPipeline>(&m_window, size);
+				m_renderer = std::make_unique<FDB::Render::SDLGraphicPipeline>(&m_window, renderSize);
 				FDB::Sdl::Application::Init(SDL_INIT_VIDEO);
 				FDB::Audio::Soloud::Init();
 
@@ -289,6 +293,17 @@
 			&FDB::Render::PBRShader::VertexShader,
 			&FDB::Render::PBRShader::FragmentShader<false>,
 			FDB::Pipeline::default_rasterizerOpt_t>;
+
+
+		using renderPath2D_t = FDB::Pipeline::RenderPath<
+			FDB::Core::VertexUi,
+			FDB::Core::VSOutput,
+			FDB::Render::UiShaders::PushConstant,
+			FDB::Render::UiShaders::ubo,
+			FDB::Render::UiShaders::ubo,
+			&FDB::Render::UiShaders::VertexShader,
+			&FDB::Render::UiShaders::FragmentShader,
+			FDB::Pipeline::rasterizerOpt_t<FDB::Pipeline::default_cullData_t, FDB::Pipeline::blendData_t<FDB::Pipeline::BlendFactor::SrcAlpha,FDB::Pipeline::BlendFactor::OneMinusSrcAlpha,FDB::Pipeline::BlendOp::Add>, FDB::Pipeline::depthData_t<false,false,FDB::Pipeline::DepthOp::Never>, FDB::Pipeline::rgba_writeMaskData_t>>;
 	protected:
 		void InitScene() override
 		{
@@ -356,8 +371,18 @@
 			m_material.OMRMap = FDB::Core::textureLoader_t::Load("Textures/ORM.png");
 
 
+			m_text.SetText("Hello, World!");
+			m_text.SetAlign(FDB::Core::Text::Align::Center);
+			m_text.SetFont(FDB::Core::fontLoader_t::Load("Lazer84.ttf",6));
+			m_text.SetFont(FDB::Core::fontLoader_t::Load("Lazer84.ttf", 6));
+
+			m_text.SetTexture(FDB::Core::textureLoader_t::Load("PBC.png"));
+
+			m_ui.SetPosition({ 1920 / 2.f,1080 / 2.f });
+			m_ui.SetScale({ 1920 ,1080 })	;
+
+
 			m_mesh = FDB::Core::meshLoader_t::Load("bloc_1x1.obj");
-			m_renderPath = renderPath_t();
 			m_wav.SetWav(*FDB::Audio::wavManager_t::Load("chevre.mp3"));
 			m_wav.SetVolume(10);
 			m_wav.SetLoop(true);
@@ -376,14 +401,14 @@
 			auto viewPort = m_renderer->GetViewPort();
 		//			});
 			auto subs = m_mesh->subMeshes;
-			/*m_pipeline.BindVertexData(m_transform.GetModelM());
+			m_pipeline.BindVertexData(m_transform.GetModelM());
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
 			m_pipeline.BindVertexData(m_transform2.GetModelM());
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
-			pool.WaitIdle();*/
+			pool.WaitIdle();
 			outD.mat = m_baseMaterials;
 			m_pipeline.BindVOutData(outD);
 
@@ -391,6 +416,23 @@
 			m_pipeline.BindVertexData(m_transform3.GetModelM());
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), viewPort, image, pool);
+			pool.WaitIdle();
+
+			FDB::Render::UiShaders::PushConstant push;
+			float aspectRatio = static_cast<float>(viewPort.width) / static_cast<float>(viewPort.height);
+			push.aspectRatio = aspectRatio;
+			push.inColor =m_ui.GetColor();
+			push.texture1 = m_text.GetFont()->GetTexture();
+			push.texture2 = m_text.GetTexture();
+
+			m_textTransform.SetPosition(m_ui.GetPosNdc(aspectRatio));
+			m_textTransform.SetScale(m_ui.GetScaleNdc(aspectRatio));
+			push.model = m_textTransform.GetModel();
+			m_pipeline2D.BindVertexData(push);
+			auto data = m_text.GetBufferData();
+			m_pipeline2D.Draw(data.vertices, data.indices, data.indicesCount, viewPort, image, pool);
+
+			pool.WaitIdle();
 
 		}
 		void Update(float dt, FDB::Core::JobPool& pool) override
@@ -413,8 +455,14 @@
 		FDB::Core::Material m_material;
 		FDB::Core::Mesh* m_mesh = nullptr;
 		std::unique_ptr<FDB::Core::Mesh> m_SphereMesh;
+
+
+		FDB::Core::Text m_text;
+		FDB::Core::Transform2D m_textTransform;
+		FDB::Core::Ui m_ui;
+
 		renderPath_t m_pipeline;
-		renderPath_t m_renderPath;
+		renderPath2D_t m_pipeline2D;
 		FDB::Audio::Wav m_wav;
 	};
 		//	P(1, 1, 1), P(-1, 1, 1),
@@ -423,7 +471,7 @@
 	{
 		std::filesystem::path path = argv[0];
 		FDB::Core::FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
-		FDB::Core::GameLoop loop("test", { windowWidth,windowHeight });
+		FDB::Core::GameLoop loop("test", { windowWidth,windowHeight }, { renderWidth, renderHeight });
 		loop.AddScene(std::make_unique<SampleScene>(), true);
 		loop.AddScene(std::make_unique<FDB::Core::BasicScene>(), false);
 		//// Face gauche : bleu

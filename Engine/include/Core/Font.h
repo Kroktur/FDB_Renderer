@@ -1,4 +1,5 @@
-#pragma once
+#ifndef FDBCOREFONTF
+#define FDBCOREFONTF
 #include <string>
 #include <vector>
 #include <memory>
@@ -19,12 +20,12 @@ namespace FDB::Core
         Ascii(char c);
         Ascii(int i);
     
-        int ToInt() const;
-        char ToChar() const;
+        [[nodiscard]] int ToInt() const;
+        [[nodiscard]] char ToChar() const;
     
-        static constexpr int ToInt(char c);
-        static constexpr char ToChar(int i);
-        static constexpr bool IsValid(char c);
+        [[nodiscard]] static constexpr int ToInt(char c);
+        [[nodiscard]] static constexpr char ToChar(int i);
+        [[nodiscard]] static constexpr bool IsValid(char c);
     private:
         char m_data = ' ';
     };
@@ -44,12 +45,12 @@ namespace FDB::Core
     struct AtlasFont
     {
         AtlasFont(FDB::Core::Texture&& image, const std::array<Glyph, 95>& glyphs, int pixelSize, float ascent, float descent);
-        Glyph GetGlyph(const Ascii& asci) const;
-        glm::ivec2 Size() const;
-        int pixSize() const;
-        float GetAscent() const;
-        float GetDescent() const;
-        FDB::Core::Texture* GetTexture();
+        [[nodiscard]] Glyph GetGlyph(const Ascii& asci) const;
+        [[nodiscard]] glm::ivec2 Size() const;
+        [[nodiscard]] int pixSize() const;
+        [[nodiscard]] float GetAscent() const;
+        [[nodiscard]] float GetDescent() const;
+		[[nodiscard]] FDB::Core::Texture* GetTexture();
     private:
         FDB::Core::Texture m_texture;
         int m_pixelSize = 0;
@@ -60,9 +61,11 @@ namespace FDB::Core
     
     struct AtlasFontHelper
     {
-    	[[nodiscard]] static std::unique_ptr<AtlasFont> LoadFont(const std::string& filePath, float res = 1.0f);
+    	[[nodiscard]] static std::unique_ptr<AtlasFont> LoadFont(const std::filesystem::path& filePath, float res = 1.0f);
     };
     
     using fontLoader_t = resourceManager_t< FDB::Core::AtlasFont, TypeWrapper<float>, FDB::Core::AtlasFontHelper::LoadFont>;
 
 }
+
+#endif

@@ -18,7 +18,7 @@ namespace FDB::Pipeline
 		~GraphicsPipeline() = default;
 
 		void SetSize(const glm::vec<2, std::int32_t>& size);
-		void BeginRender(const Color::RGBAFloat& color = Color::alphaFloat, float z = 1.f);
+		void BeginRender(const Color::RGBA8888& color = Color::alphaFloat, float z = 1.f);
 		[[nodiscard]] glm::vec<2, std::int32_t> GetSize() const;
 		[[nodiscard]]FrameBuffer GetBuffer();
 	private:

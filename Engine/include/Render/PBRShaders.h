@@ -154,9 +154,8 @@ namespace FDB::Render
 			 result += emissiveMap * emissiveFactor;
 			 result = result / (result + glm::vec3(1.f));
 			 result = glm::pow(result, glm::vec3(1.f / 2.2f));
-			 glm::vec2 uv = glm::max(out.vertexDx.fragTexCord, out.vertexDy.fragTexCord);
-			// return FragmentShaderR_t::Color(glm::vec4{ uv * glm::vec2(data.mat.baseColor->mipLevels[0].size),0,1 });
 			 return FragmentShaderR_t::Color(glm::vec4(result, 1.0f));
+
 		 }
 	};
 }
