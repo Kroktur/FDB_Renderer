@@ -306,7 +306,6 @@
 			m_transform2.SetPosition(glm::vec3{ 0,0,-5 });
 			m_transform2.ScaleUp(glm::vec3{ 1.f / 3.f });
 			std::uint32_t frameCount = 0;
-		//std::uint32_t frameCount = 0;
 
 			m_light2 = FDB::Core::Light();
 			m_light2.SetType(FDB::Core::LightType::Dir);
@@ -314,21 +313,34 @@
 			
 			
 			//Sphere function
+					// type to create seed 
+			KTR::Random::default_seed_gen_type seedGen;
 
+			// create a seed ( std::uint32_t or std::uint64_t depend on archi)
+			KTR::Random::default_value_type seed = seedGen();
+			// create a bit generator ( 1 by random system) 
+			// init with a seed default 0 ( std::uint32_t or std::uint64_t depend on archi)
+			KTR::Random::default_bit_gen_type gen(seed);
 
-			//m_SphereMesh = std::make_unique<FDB::Core::Mesh>();
-			//auto p3d = RelaxAlgo::createSphere();
+			// create a distribution between 2 number (one per random range)
+			KTR::distrib::Distribution<float> dist(1.f, 100.f);
 
-			//std::vector<glm::vec3> unit;
-			//for (auto& p : p3d) 
-			//	unit.push_back(glm::normalize(p));
+			// generate the random value
+			float v = dist(gen);
 
-			//auto sub = CreateSphere::TransformPointToTriangle(p3d);
-			//sub = CreateSphere::applyNoise(unit, sub.indices, 20.0f, 5.0f, 5.5f);
-			//m_SphereMesh->subMeshes.push_back(std::move(sub));
-			//FDB::Core::MeshTools::ComputeTangent(*m_SphereMesh);
+			m_SphereMesh = std::make_unique<FDB::Core::Mesh>();
+			auto p3d = RelaxAlgo::createSphere();
 
-			m_transform3.SetPosition(glm::vec3{ 0,0,1 });
+			std::vector<glm::vec3> unit;
+			for (auto& p : p3d) 
+				unit.push_back(glm::normalize(p));
+
+			auto sub = CreateSphere::TransformPointToTriangle(p3d);
+			sub = CreateSphere::applyNoise(unit, sub.indices, 20.f, 5, v);
+			m_SphereMesh->subMeshes.push_back(std::move(sub));
+			FDB::Core::MeshTools::ComputeTangent(*m_SphereMesh);
+
+			m_transform3.SetPosition(glm::vec3{ 0,0,-10 });
 			m_transform3.ScaleUp(glm::vec3{ 1.f/3.f });
 
 			m_light2.SetPos({ 0,0,5 });
@@ -371,23 +383,24 @@
 			//for (auto& sub : subs)
 			//	m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
-			m_pipeline.BindVertexData(m_transform2.GetModelM());
-			for (auto& sub : subs)
-				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
-			pool.WaitIdle();
+			//m_pipeline.BindVertexData(m_transform2.GetModelM());
+			//for (auto& sub : subs)
+			//	m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+			//pool.WaitIdle();
 			outD.mat = m_baseMaterials;
 			m_pipeline.BindVOutData(outD);
 
-			//subs = m_SphereMesh->subMeshes;
-			//m_pipeline.BindVertexData(m_transform3.GetModelM());
-			//for (auto& sub : subs)
-			//	m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+			subs = m_SphereMesh->subMeshes;
+			m_pipeline.BindVertexData(m_transform3.GetModelM());
+			for (auto& sub : subs)
+				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
-			//pool.WaitIdle();
+			pool.WaitIdle();
 		}
 		void Update(float dt, FDB::Core::JobPool& pool) override
 		{
 			m_transform2.Rotate(dt * 0.5f, { 0,-1,0 });
+			m_transform3.Rotate(dt * 0.5f, { 0,-1,0 });
 		}
 	private:
 		
