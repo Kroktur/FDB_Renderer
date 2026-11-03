@@ -148,8 +148,8 @@ namespace FDB::Pipeline
 				vertex vA = vBuffer[iBuffer[i]];
 				vertex vB = vBuffer[iBuffer[i + 1]];
 				vertex vC = vBuffer[iBuffer[i + 2]];
-				pool.PushJob([vA,vB,vC,copyVertex,this,&viewPort,&imageData,&pool]()
-					{
+				/*pool.PushJob([vA,vB,vC,copyVertex,this,&viewPort,&imageData,&pool]()
+					{*/
 					
 						VertexOutData vertexOut[3];
 						vertexOut[0].vertex = vertexShader(vA, copyVertex, m_vInBuffer);
@@ -163,21 +163,21 @@ namespace FDB::Pipeline
 							VertexOutData a = RenderPath::Screen(RenderPath::Perspective(poly[0]), viewPort);
 							VertexOutData b = RenderPath::Screen(RenderPath::Perspective(poly[j]), viewPort);
 							VertexOutData c = RenderPath::Screen(RenderPath::Perspective(poly[j + 1]), viewPort);
-							pool.PushJob([a, b, c, this, copyVertex, &viewPort, &imageData, &pool]()mutable
-							{
+							/*pool.PushJob([a, b, c, this, copyVertex, &viewPort, &imageData, &pool]()mutable
+							{*/
 									auto result = cullType::ValidArea(std::array<glm::vec<4, float>, 3>{ a.position, b.position, c.position });
 									if (!result.valid)
-										return;
+										continue;
 									if (result.needSwap)
 									{
 										std::swap(b.position, c.position);
 									}
 									rasterizer_t::template Compute ({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, copyVertex, m_vOutBuffer, pool);
-							});
+						/*	});*/
 
 							
 						}
-					});
+				/*	});*/
 			}
 		}
 

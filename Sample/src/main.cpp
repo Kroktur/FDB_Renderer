@@ -392,7 +392,6 @@
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), viewPort, image, pool);
 
-			pool.WaitIdle();
 		}
 		void Update(float dt, FDB::Core::JobPool& pool) override
 		{

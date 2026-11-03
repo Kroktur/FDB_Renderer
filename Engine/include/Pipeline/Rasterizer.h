@@ -369,14 +369,14 @@ namespace FDB::Pipeline
 				blockSetup.block.blockSize.y = std::min(blockDim.y, setup.box.max.y - blockY + 1);
 				for (std::int32_t blockX = setup.box.min.x; blockX <= setup.box.max.x; blockX += blockDim.x)
 				{
-					pool.PushJob([blockX, blockY, setup, blockSetup, pushConstants, &fragmentOut, &image, &pool]()mutable
-					{
+					/*pool.PushJob([blockX, blockY, setup, blockSetup, pushConstants, &fragmentOut, &image, &pool]()mutable
+					{*/
 							blockSetup.block.blockSize.x = std::min(blockDim.x, setup.box.max.x - blockX + 1);
 							blockSetup.block.blockOrigin = { blockX, blockY };
 
 							deltaData_t<glm::vec<3, fixed_value_t>> fixedBlockEdgeData = TriangleRasterizer::InitializeStepEdgeData(blockSetup.block.blockOrigin, setup.box, blockSetup.block.blockSize, setup.fixedBaseEdgeData);
 							if (TriangleRasterizer::IsBlock<false>(fixedBlockEdgeData))
-								return;
+								continue;
 
 
 							TriangleRasterizer::UpdateLinearData(setup.fixedBaseInvW, fixedBlockEdgeData, setup.fixedInvArea, blockSetup.fixedWData);
@@ -392,7 +392,7 @@ namespace FDB::Pipeline
 							{
 								TriangleRasterizer::PixelLoop(setup.triangle, setup.topLeftRule, fixedBlockEdgeData, blockSetup, image, pushConstants, fragmentOut, pool);
 							}
-					});
+					/*});*/
 
 
 
