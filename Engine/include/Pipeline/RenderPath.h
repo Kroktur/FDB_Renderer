@@ -80,8 +80,8 @@ namespace FDB::Pipeline
 
 	template<typename T>
 	concept ValidRasterizerOpt = is_rasterizerOpt_v<T>;
-	template<ValidVertexT VertIn, ValidVertexT VertOut, typename VertexData, typename VInData, typename VOutData, VertOut(*vertexShader)(const VertIn&, const VertexData&, const VInData&), auto(*fragmentShader)(const fragment_input_t<VertOut>&, const VOutData&), ValidRasterizerOpt RasterizerOpt = default_rasterizerOpt_t>
-		requires(ValidFragmentFunction<VertOut, decltype(fragmentShader), const VOutData&>)
+	template<ValidVertexT VertIn, ValidVertexT VertOut, typename VertexData, typename VInData, typename VOutData, VertOut(*vertexShader)(const VertIn&, const VertexData&, const VInData&), auto(*fragmentShader)(const fragment_input_t<VertOut>&, const VertexData&, const VOutData&), ValidRasterizerOpt RasterizerOpt = default_rasterizerOpt_t>
+		requires(ValidFragmentFunction<VertOut, decltype(fragmentShader), const VertexData&,const VOutData&>)
 	struct RenderPath
 	{
 
@@ -105,7 +105,7 @@ namespace FDB::Pipeline
 		using DepthT = RasterizerOpt::depth_t;
 		using cullType = RasterizerOpt::cull_t;
 		using writeT = RasterizerOpt::write_t;
-		using rasterizer_t = TriangleRasterizer < vertexOut, vOut_data_t, fragmentShader, 64, cullType, blendT, DepthT, writeT > ;
+		using rasterizer_t = TriangleRasterizer < vertexOut, vertex_data_t, vOut_data_t, fragmentShader, 64, cullType, blendT, DepthT, writeT > ;
 
 
 
@@ -163,7 +163,7 @@ namespace FDB::Pipeline
 							VertexOutData a = RenderPath::Screen(RenderPath::Perspective(poly[0]), viewPort);
 							VertexOutData b = RenderPath::Screen(RenderPath::Perspective(poly[j]), viewPort);
 							VertexOutData c = RenderPath::Screen(RenderPath::Perspective(poly[j + 1]), viewPort);
-							pool.PushJob([a,b,c,this,&viewPort,&imageData,&pool]()mutable 
+							pool.PushJob([a, b, c, this, copyVertex, &viewPort, &imageData, &pool]()mutable
 							{
 									auto result = cullType::ValidArea(std::array<glm::vec<4, float>, 3>{ a.position, b.position, c.position });
 									if (!result.valid)
@@ -172,7 +172,7 @@ namespace FDB::Pipeline
 									{
 										std::swap(b.position, c.position);
 									}
-									rasterizer_t::template Compute ({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, m_vOutBuffer, pool);
+									rasterizer_t::template Compute ({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, copyVertex, m_vOutBuffer, pool);
 							});
 
 							

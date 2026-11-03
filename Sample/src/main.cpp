@@ -373,7 +373,7 @@
 			m_pipeline.BindVOutData(outD);
 
 			auto image = m_renderer->GetFrameBuffer();
-
+			auto viewPort = m_renderer->GetViewPort();
 		//			});
 			auto subs = m_mesh->subMeshes;
 			/*m_pipeline.BindVertexData(m_transform.GetModelM());
@@ -390,7 +390,7 @@
 			subs = m_SphereMesh->subMeshes;
 			m_pipeline.BindVertexData(m_transform3.GetModelM());
 			for (auto& sub : subs)
-				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), viewPort, image, pool);
 
 			pool.WaitIdle();
 		}

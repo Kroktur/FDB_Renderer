@@ -38,7 +38,7 @@ namespace FDB::Render
 	{
 		static FDB::Render::PBRFragment VertexShader(const FDB::Core::vertex_t& input, const PushConstant& data, const vertexShaderData& camData);
 		template<bool disneyDiff = false >
-		 static FragmentShaderR_t FragmentShader(const FDB::Pipeline::fragment_input_t<FDB::Render::PBRFragment>& out, const fragmentShaderData& data)
+		 static FragmentShaderR_t FragmentShader(const FDB::Pipeline::fragment_input_t<FDB::Render::PBRFragment>& out, const PushConstant& pushConstant, const fragmentShaderData& data)
 		 {
 			 static constexpr glm::vec3 ambientLight = glm::vec3(0.02f);
 
