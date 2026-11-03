@@ -303,7 +303,8 @@
 			m_light.SetIntensity(350.f);
 
 			m_transform2 = FDB::Core::Transform();
-			m_transform2.SetPosition(glm::vec3{ 0,0,1 });
+			m_transform2.SetPosition(glm::vec3{ 0,0,-5 });
+			m_transform2.ScaleUp(glm::vec3{ 1.f / 3.f });
 			std::uint32_t frameCount = 0;
 		//std::uint32_t frameCount = 0;
 
@@ -315,19 +316,19 @@
 			//Sphere function
 
 
-			m_SphereMesh = std::make_unique<FDB::Core::Mesh>();
-			auto p3d = RelaxAlgo::createSphere();
+			//m_SphereMesh = std::make_unique<FDB::Core::Mesh>();
+			//auto p3d = RelaxAlgo::createSphere();
 
-			std::vector<glm::vec3> unit;
-			for (auto& p : p3d) 
-				unit.push_back(glm::normalize(p));
+			//std::vector<glm::vec3> unit;
+			//for (auto& p : p3d) 
+			//	unit.push_back(glm::normalize(p));
 
-			auto sub = CreateSphere::TransformPointToTriangle(p3d);
-			sub = CreateSphere::applyNoise(unit, sub.indices, 20.0f, 5.0f, 5.5f);
-			m_SphereMesh->subMeshes.push_back(std::move(sub));
-			FDB::Core::MeshTools::ComputeTangent(*m_SphereMesh);
+			//auto sub = CreateSphere::TransformPointToTriangle(p3d);
+			//sub = CreateSphere::applyNoise(unit, sub.indices, 20.0f, 5.0f, 5.5f);
+			//m_SphereMesh->subMeshes.push_back(std::move(sub));
+			//FDB::Core::MeshTools::ComputeTangent(*m_SphereMesh);
 
-			m_transform3.SetPosition(glm::vec3{ 0,0,-10 });
+			m_transform3.SetPosition(glm::vec3{ 0,0,1 });
 			m_transform3.ScaleUp(glm::vec3{ 1.f/3.f });
 
 			m_light2.SetPos({ 0,0,5 });
@@ -350,7 +351,7 @@
 			m_material.OMRMap = FDB::Core::textureLoader_t::Load("Textures/ORM.png");
 
 
-			m_mesh = FDB::Core::meshLoader_t::Load("bloc_1x1.obj");
+			m_mesh = FDB::Core::meshLoader_t::Load("Fighter_03.obj");
 			m_renderPath = renderPath_t();
 		}
 	public:
@@ -366,27 +367,27 @@
 
 		//			});
 			auto subs = m_mesh->subMeshes;
-			/*m_pipeline.BindVertexData(m_transform.GetModelM());
-			for (auto& sub : subs)
-				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+			//m_pipeline.BindVertexData(m_transform.GetModelM());
+			//for (auto& sub : subs)
+			//	m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
 			m_pipeline.BindVertexData(m_transform2.GetModelM());
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
-			pool.WaitIdle();*/
+			pool.WaitIdle();
 			outD.mat = m_baseMaterials;
 			m_pipeline.BindVOutData(outD);
 
-			subs = m_SphereMesh->subMeshes;
-			m_pipeline.BindVertexData(m_transform3.GetModelM());
-			for (auto& sub : subs)
-				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+			//subs = m_SphereMesh->subMeshes;
+			//m_pipeline.BindVertexData(m_transform3.GetModelM());
+			//for (auto& sub : subs)
+			//	m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
-			pool.WaitIdle();
+			//pool.WaitIdle();
 		}
 		void Update(float dt, FDB::Core::JobPool& pool) override
 		{
-			m_transform.Rotate(dt * 0.5f, { 0,0,-1 });
+			m_transform2.Rotate(dt * 0.5f, { 0,-1,0 });
 		}
 	private:
 		

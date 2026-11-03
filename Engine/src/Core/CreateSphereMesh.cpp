@@ -17,7 +17,6 @@ FDB::Core::SubMesh CreateSphere::TransformPointToTriangle(const std::vector<glm:
     const int k = 12;
     const uint32_t n = (uint32_t)pts.size();
 
-    // points unitaires : les seuils numériques sont prévus pour un rayon de 1
     std::vector<glm::vec3> p(n);
     for (uint32_t i = 0; i < n; ++i) 
         p[i] = glm::normalize(pts[i]);
@@ -77,7 +76,6 @@ static glm::vec2 sphereUV(const glm::vec3& n)
     return { u, v };
 }
 
-// bruit fractal : plusieurs couches de Perlin, de plus en plus fines et faibles
 static float fbm(const glm::vec3& p, float frequency, int octaves = 4)
 {
     float sum = 0.0f;
@@ -88,10 +86,10 @@ static float fbm(const glm::vec3& p, float frequency, int octaves = 4)
     {
         sum += amp * glm::perlin(p * frequency);
         norm += amp;
-        amp *= 0.5f;        // chaque couche pèse moitié moins
-        frequency *= 2.0f;  // et est deux fois plus détaillée
+        amp *= 0.5f;
+        frequency *= 2.0f;
     }
-    return sum / norm;      // reste dans [-1, 1]
+    return sum / norm;
 }
 
 FDB::Core::SubMesh CreateSphere::applyNoise(const std::vector<glm::vec3>& unitPoints, const std::vector<uint32_t>& idx, float radius, float amplitude, float frequency)
@@ -99,21 +97,19 @@ FDB::Core::SubMesh CreateSphere::applyNoise(const std::vector<glm::vec3>& unitPo
     FDB::Core::SubMesh subMesh;
     std::vector<FDB::Core::Vertex> out(unitPoints.size());
 
-    // 1) déplacement radial par le bruit
     for (size_t i = 0; i < unitPoints.size(); ++i)
     {
         const glm::vec3 dir = glm::normalize(unitPoints[i]);
 
-        float n = fbm(dir, frequency);          // [-1, 1]
-        float r = radius + amplitude * n;       // rayon local
+        float n = fbm(dir, frequency);
+        float r = radius + amplitude * n;
 
         out[i].pos = glm::vec4(dir * r, 1.0f);
-        out[i].normal = glm::vec3(0.0f);        // on va accumuler dessus
-        out[i].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);        // adapte au nom réel du champ
+        out[i].normal = glm::vec3(0.0f);
+        out[i].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
         out[i].uv = sphereUV(dir);
     }
 
-    // 2) normales : somme des normales de faces (pondérées par l'aire)
     for (size_t i = 0; i + 2 < idx.size(); i += 3)
     {
         uint32_t ia = idx[i], ib = idx[i + 1], ic = idx[i + 2];
@@ -129,6 +125,6 @@ FDB::Core::SubMesh CreateSphere::applyNoise(const std::vector<glm::vec3>& unitPo
         v.normal = glm::normalize(v.normal);
 
     subMesh.vertices = std::move(out);
-    subMesh.indices = idx;                     // à ne pas oublier
+    subMesh.indices = idx;
     return subMesh;
 }
