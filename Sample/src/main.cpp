@@ -303,7 +303,7 @@
 			m_light.SetIntensity(350.f);
 
 			m_transform2 = FDB::Core::Transform();
-			m_transform2.SetPosition(glm::vec3{ 0,0,-5 });
+			m_transform2.SetPosition(glm::vec3{ 0,0,-15 });
 			m_transform2.ScaleUp(glm::vec3{ 1.f / 3.f });
 			std::uint32_t frameCount = 0;
 
@@ -379,14 +379,14 @@
 
 		//			});
 			auto subs = m_mesh->subMeshes;
-			//m_pipeline.BindVertexData(m_transform.GetModelM());
-			//for (auto& sub : subs)
-			//	m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+			m_pipeline.BindVertexData(m_transform.GetModelM());
+			for (auto& sub : subs)
+				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
-			//m_pipeline.BindVertexData(m_transform2.GetModelM());
-			//for (auto& sub : subs)
-			//	m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
-			//pool.WaitIdle();
+			m_pipeline.BindVertexData(m_transform2.GetModelM());
+			for (auto& sub : subs)
+				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
+			pool.WaitIdle();
 			outD.mat = m_baseMaterials;
 			m_pipeline.BindVOutData(outD);
 
@@ -399,7 +399,8 @@
 		}
 		void Update(float dt, FDB::Core::JobPool& pool) override
 		{
-			m_transform2.Rotate(dt * 0.5f, { 0,-1,0 });
+			m_transform.Rotate(dt * 0.5f, { 0,1,-1 });
+			m_transform2.Rotate(dt * 0.5f, { 0,-1,-1 });
 			m_transform3.Rotate(dt * 0.5f, { 0,-1,0 });
 		}
 	private:
