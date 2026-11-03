@@ -46,15 +46,15 @@ namespace FDB::Render
 		const vertexShaderData& camData)
 	{
 		FDB::Render::PBRFragment result;
-		glm::vec4 wsPos = data * input.pos;
+		glm::vec4 wsPos = data.model * input.pos;
 		result.pos = camData.proj * (camData.view * wsPos);
 		result.worldSpacePosition = { wsPos.x,wsPos.y,wsPos.z };
 		glm::vec4 pos4 = camData.invView * glm::vec4(0, 0, 0, 1);
 		result.eyePos = { pos4.x,pos4.y,pos4.z };
 		result.fragTexCord = input.uv;
 		result.fragColor = input.color;
-		result.normal = glm::normalize(glm::transpose(glm::inverse(data)) * glm::vec4(input.normal.x, input.normal.y, input.normal.z, 0.0f));
-		result.tangent = glm::normalize(data * glm::vec4(input.tangent.x, input.tangent.y, input.tangent.z, 0.0f));
+		result.normal = glm::normalize(glm::transpose(glm::inverse(data.model)) * glm::vec4(input.normal.x, input.normal.y, input.normal.z, 0.0f));
+		result.tangent = glm::normalize(data.model * glm::vec4(input.tangent.x, input.tangent.y, input.tangent.z, 0.0f));
 		glm::vec3 B = glm::cross(result.normal, result.tangent) * input.tangent.w;
 		result.bitangent = glm::normalize(B);
 		return result;

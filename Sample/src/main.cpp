@@ -394,26 +394,24 @@
 			
 
 			m_pipeline.BindVInData(m_camera.GetData());
-			FDB::Render::fragmentShaderData outD{ m_material  ,m_lDatas };
+			FDB::Render::fragmentShaderData outD{ m_lDatas };
 			m_pipeline.BindVOutData(outD);
 
 			auto image = m_renderer->GetFrameBuffer();
 			auto viewPort = m_renderer->GetViewPort();
 		//			});
 			auto subs = m_mesh->subMeshes;
-			m_pipeline.BindVertexData(m_transform.GetModelM());
+			m_pipeline.BindVertexData({m_transform.GetModelM(),m_material});
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
 
-			m_pipeline.BindVertexData(m_transform2.GetModelM());
+			m_pipeline.BindVertexData({m_transform2.GetModelM(),m_material});
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), image, pool);
-			pool.WaitIdle();
-			outD.mat = m_baseMaterials;
 			m_pipeline.BindVOutData(outD);
 
 			subs = m_SphereMesh->subMeshes;
-			m_pipeline.BindVertexData(m_transform3.GetModelM());
+			m_pipeline.BindVertexData({m_transform3.GetModelM(),m_baseMaterials});
 			for (auto& sub : subs)
 				m_pipeline.Draw(sub.vertices.data(), sub.indices.data(), sub.indices.size(), viewPort, image, pool);
 			pool.WaitIdle();
@@ -431,7 +429,6 @@
 			m_pipeline2D.BindVertexData(push);
 			auto data = m_text.GetBufferData();
 			m_pipeline2D.Draw(data.vertices, data.indices, data.indicesCount, viewPort, image, pool);
-
 			pool.WaitIdle();
 
 		}

@@ -24,12 +24,14 @@ namespace FDB::Render
 		static glm::vec3 DisneyDiffuse(const glm::vec3& albedo, float FD90, float NDL, float NDV);
 	};
 
-
-	using PushConstant = glm::mat4;
+	struct PushConstant
+	{
+		glm::mat4 model;
+		Core::Material mat;
+	};
 	using  vertexShaderData = FDB::Core::cameraDat_t;
 	struct fragmentShaderData
 	{
-		FDB::Core::Material mat;
 		std::vector<FDB::Core::lightData_t> lights;
 	};
 	using FragmentShaderR_t = FDB::Pipeline::fragment_output_t<FDB::Pipeline::FragmentState::Keep>;
@@ -45,11 +47,11 @@ namespace FDB::Render
 			 const auto& v = out.vertex;
 			 glm::vec2 dUvX = out.vertexDx.fragTexCord, dUvY = out.vertexDy.fragTexCord;
 			 
-			 glm::vec4 baseMap = FDB::Render::Sample::Execute(data.mat.baseColor, v.fragTexCord,dUvX,dUvY);
-			 glm::vec3 OMRMap = FDB::Render::Sample::Execute(data.mat.OMRMap, v.fragTexCord, dUvX, dUvY);
-			 glm::vec3 normalMap = FDB::Render::Sample::Execute(data.mat.normalMap, v.fragTexCord, dUvX, dUvY) * 2.0f - glm::vec4(1.0f);
-			 glm::vec3 emissiveMap = glm::pow(glm::vec3(FDB::Render::Sample::Execute(data.mat.emissiveMap, v.fragTexCord, dUvX, dUvY)), glm::vec3(2.2f));
-			 float emissiveFactor = data.mat.emissiveFactor;
+			 glm::vec4 baseMap = FDB::Render::Sample::Execute(pushConstant.mat.baseColor, v.fragTexCord,dUvX,dUvY);
+			 glm::vec3 OMRMap = FDB::Render::Sample::Execute(pushConstant.mat.OMRMap, v.fragTexCord, dUvX, dUvY);
+			 glm::vec3 normalMap = FDB::Render::Sample::Execute(pushConstant.mat.normalMap, v.fragTexCord, dUvX, dUvY) * 2.0f - glm::vec4(1.0f);
+			 glm::vec3 emissiveMap = glm::pow(glm::vec3(FDB::Render::Sample::Execute(pushConstant.mat.emissiveMap, v.fragTexCord, dUvX, dUvY)), glm::vec3(2.2f));
+			 float emissiveFactor = pushConstant.mat.emissiveFactor;
 
 			 float occlusion = OMRMap.r;
 			 float metalness = OMRMap.b;
