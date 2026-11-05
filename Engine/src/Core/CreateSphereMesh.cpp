@@ -105,13 +105,9 @@ FDB::Core::SubMesh CreateSphere::applyNoise(const std::vector<glm::vec3>& unitPo
         float r = radius + amplitude * n;
 
         out[i].pos = glm::vec4(dir * r, 1.0f);
-<<<<<<< HEAD
         out[i].normal = glm::vec3(0.0f);
         out[i].color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
-=======
-        out[i].normal = glm::vec3(0.0f);        // on va accumuler dessus
-        out[i].color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);        // adapte au nom réel du champ
->>>>>>> origin/audio
+
         out[i].uv = sphereUV(dir);
     }
 

@@ -345,7 +345,7 @@
 			for (auto& p : p3d)
 				unit.push_back(glm::normalize(p));
 			auto sub = CreateSphere::TransformPointToTriangle(p3d);
-			sub = CreateSphere::applyNoise(unit, sub.indices, 20.f, 5, v);
+			sub = CreateSphere::applyNoise(unit, sub.indices, 20.f, 5.f, 5.f);
 			m_SphereMesh->subMeshes.push_back(std::move(sub));
 			FDB::Core::MeshTools::ComputeTangent(*m_SphereMesh);
 			{
@@ -378,6 +378,19 @@
 				light.SetType(FDB::Core::LightType::Point);
 				light.SetPos({ 0,0,6 });
 				light.SetDir(glm::normalize(glm::vec3{ -2,0,-1 }));
+				light.SetColor(FDB::Color::whiteFloat);
+				light.SetIntensity(12450.f);
+				m_reg.AddComponent(e, std::move(light));
+
+			}
+			//light sun
+			{
+				FDB::Core::entity e = m_reg.CreateEntity();
+
+				FDB::Core::Light light;
+				light.SetType(FDB::Core::LightType::Point);
+				light.SetPos({ 10, 0, -50 });
+				light.SetDir(glm::normalize(glm::vec3{ 0,0,0 }));
 				light.SetColor(FDB::Color::whiteFloat);
 				light.SetIntensity(12450.f);
 				m_reg.AddComponent(e, std::move(light));
