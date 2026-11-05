@@ -53,7 +53,7 @@ namespace FDB::Render
 		result.eyePos = { pos4.x,pos4.y,pos4.z };
 		result.fragTexCord = input.uv;
 		result.fragColor = input.color;
-		result.normal = glm::normalize(glm::transpose(glm::inverse(data.model)) * glm::vec4(input.normal.x, input.normal.y, input.normal.z, 0.0f));
+		result.normal = glm::normalize(data.model * glm::vec4(input.normal.x, input.normal.y, input.normal.z, 0.0f));
 		result.tangent = glm::normalize(data.model * glm::vec4(input.tangent.x, input.tangent.y, input.tangent.z, 0.0f));
 		glm::vec3 B = glm::cross(result.normal, result.tangent) * input.tangent.w;
 		result.bitangent = glm::normalize(B);

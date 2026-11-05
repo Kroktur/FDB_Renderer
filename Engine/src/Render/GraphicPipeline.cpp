@@ -47,19 +47,16 @@ namespace FDB::Render
 
 	void SDLGraphicPipeline::PresentRender(Core::jobPool_t& pool)
 	{
-		static constexpr std::size_t blockSize = (64 * 64);
 		auto* aCBuffer = m_frameBuffer.atomicBuffer.data;
 		auto* cBuffer = m_frameBuffer.colorBuffer.data;
 		std::size_t totSize = m_frameBuffer.atomicBuffer.size.x * m_frameBuffer.atomicBuffer.size.y;
 
 		for (std::size_t i = 0 ; i < totSize ; ++i)
 		{
-			std::size_t count = std::min(blockSize, totSize - i);
 			*cBuffer =  static_cast<std::uint32_t>(*aCBuffer);
 			++aCBuffer;
 			++cBuffer;
 		}
-		pool.WaitIdle();
 		m_texture.Update(m_frameBuffer.colorBuffer.data, m_currentResolution.x * static_cast<int>(sizeof(std::uint32_t)));
 		m_renderer.RenderTexture(m_texture);
 		m_renderer.Present();

@@ -22,9 +22,12 @@ namespace FDB::Render
 		const FDB::Pipeline::fragment_input_t<FDB::Core::VSOutput>& out, const PushConstant& pushConstant,
 		const ubo& data)
 	{
-		glm::vec4 color = glm::pow(FDB::Render::Sample::Execute(pushConstant.texture1, out.vertex.uv, out.vertexDx.uv, out.vertexDy.uv), glm::vec4(2.2f));
-		glm::vec4 color2 = glm::pow(FDB::Render::Sample::Execute(pushConstant.texture2, out.vertex.uv2, out.vertexDx.uv2, out.vertexDy.uv2), glm::vec4(2.2f));
-		auto finalColor = glm::pow(color2 * color * out.vertex.color, glm::vec4(1.f / 2.2f));
+		glm::vec4 color = FDB::Render::Sample::Execute(pushConstant.texture1, out.vertex.uv, out.vertexDx.uv, out.vertexDy.uv);
+		color = glm::pow(color, glm::vec4(2.2,2.2f,2.2f,1.0f));
+		glm::vec4 color2 = FDB::Render::Sample::Execute(pushConstant.texture2, out.vertex.uv2, out.vertexDx.uv2, out.vertexDy.uv2);
+		color2 = glm::pow(color2, glm::vec4(2.2, 2.2f, 2.2f, 1.0f));
+		auto finalColor = color2 * color * out.vertex.color;
+		finalColor = glm::pow(finalColor, glm::vec4(1.f / 2.2f, 1.f / 2.2f, 1.f / 2.2f, 1.f));
 		return FragmentShaderR_t::Color({ finalColor });
 	}
 }

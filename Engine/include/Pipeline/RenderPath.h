@@ -105,22 +105,66 @@ namespace FDB::Pipeline
 		using DepthT = RasterizerOpt::depth_t;
 		using cullType = RasterizerOpt::cull_t;
 		using writeT = RasterizerOpt::write_t;
-		using rasterizer_t = TriangleRasterizer < vertexOut, vertex_data_t, vOut_data_t, fragmentShader, 64, cullType, blendT, DepthT, writeT > ;
+		using rasterizer_t = TriangleRasterizer < vertexOut, vertex_data_t, vOut_data_t, fragmentShader, 128, cullType, blendT, DepthT, writeT > ;
 
 
 
 		struct VertexOutData
 		{
-			glm::vec<4, float> position;
 			vertexOut vertex;
+			glm::vec<4, float> position;
 		};
 		struct TriangleOutData
 		{
-			pos_array_t positions;
-			outTriangle_t triangles;
-			float area;
+			std::array<VertexOutData, 3> triangle;
 		};
 
+		struct Tile
+		{
+			FrameBuffer* buffer;
+			viewPort_t viewPort = {};
+			std::vector<TriangleOutData> triangles = {};
+			std::vector<vertex_data_t> pushConstant = {};
+		};
+
+		template<std::size_t tileSizeT = 32>
+		struct TileGrid
+		{
+			TileGrid() = default;
+			static constexpr int tileSizeV = tileSizeT;
+
+			glm::ivec2 size;
+			glm::ivec2 tileCount;
+			std::vector<Tile> tiles;
+
+			TileGrid(viewPort_t viewPort,  FrameBuffer* buffer)
+				: size(viewPort.width,viewPort.height)
+			
+			{
+				tileCount.x = (viewPort.width + tileSizeV - 1) / tileSizeV;
+				tileCount.y = (viewPort.height + tileSizeV - 1) / tileSizeV;
+				tiles.clear();
+				tiles.resize(tileCount.x * tileCount.y);
+
+				for (int y = 0; y < tileCount.y; ++y)
+				{
+					for (int x = 0; x < tileCount.x; ++x)
+					{
+						Tile& tile = tiles[y * tileCount.x + x];
+						tile.viewPort.x = viewPort.x + x * tileSizeV;
+						tile.viewPort.y = viewPort.y + y * tileSizeV;
+						tile.viewPort.width = std::min(tileSizeV, size.x - x * tileSizeV);
+						tile.viewPort.height = std::min(tileSizeV, size.y - y * tileSizeV);
+						tile.buffer = buffer;
+					}
+				}
+			}
+
+			Tile& GetTile(int x, int y)
+			{
+				return tiles[y * tileCount.x + x];
+			}
+		};
 
 		void BindVInData(vIn_data_t _buffer)
 		{
@@ -135,57 +179,157 @@ namespace FDB::Pipeline
 			m_vertexData = _data;
 		}
 
-		void Draw(vertex_buffer_t vBuffer, index_buffer_t iBuffer, std::size_t indexCount,const viewPort_t& viewPort, const FrameBuffer& imageData,Core::jobPool_t& pool)
+	
+
+		void Setup(const viewPort_t& viewPort, FrameBuffer* imageData)
 		{
+			if (m_viewPort != viewPort)
+				GenerateTile(viewPort, imageData);
+			ClearTiles();
+		}
+		void DrawTile(vertex_buffer_t vBuffer, index_buffer_t iBuffer, std::size_t indexCount, const viewPort_t& viewPort,  FrameBuffer* imageData, Core::jobPool_t& pool)
+		{
+			
+
 			using fragmentInput_t = FDB::Pipeline::FragmentInput<vertexOut>;
 
 			for (std::size_t i = 0; i + 2 < indexCount; i += 3)
 			{
+				m_poly.clear();
+				m_copy.clear();
+				m_poly.push_back(VertexOutData{ vertexShader(vBuffer[iBuffer[i]], m_vertexData, m_vInBuffer) ,{} });
+				m_poly.push_back(VertexOutData{ vertexShader(vBuffer[iBuffer[i + 1]], m_vertexData, m_vInBuffer) ,{} });
+				m_poly.push_back(VertexOutData{ vertexShader(vBuffer[iBuffer[i + 2]], m_vertexData, m_vInBuffer) ,{} });
+
+				m_poly[0].position = interpret_t::GetPosition(m_poly[0].vertex);
+				m_poly[1].position = interpret_t::GetPosition(m_poly[1].vertex);
+				m_poly[2].position = interpret_t::GetPosition(m_poly[2].vertex);
+
+				auto cA = GetOutCode(m_poly[0]);
+				auto cB = GetOutCode(m_poly[1]);
+				auto cC = GetOutCode(m_poly[2]);
+
+				if ((cA & cB & cC) != 0)
+					continue;
+				if ((cA | cB | cC) != 0)
+					RenderPath::Clip(m_poly, m_copy);
 				
 
-				auto copyVertex = m_vertexData;
+				for (std::size_t j = 1; j + 1 < m_poly.size(); ++j) {
+					VertexOutData a = RenderPath::Screen(RenderPath::Perspective(m_poly[0]), viewPort);
+					VertexOutData b = RenderPath::Screen(RenderPath::Perspective(m_poly[j]), viewPort);
+					VertexOutData c = RenderPath::Screen(RenderPath::Perspective(m_poly[j + 1]), viewPort);
 
-				vertex vA = vBuffer[iBuffer[i]];
-				vertex vB = vBuffer[iBuffer[i + 1]];
-				vertex vC = vBuffer[iBuffer[i + 2]];
-				/*pool.PushJob([vA,vB,vC,copyVertex,this,&viewPort,&imageData,&pool]()
-					{*/
+					auto result = cullType::ValidArea(std::array<glm::vec<4, float>, 3>{ a.position, b.position, c.position });
+					if (!result.valid)
+						continue;
+					if (result.needSwap)
+					{
+						std::swap(b.position, c.position);
+					}
+
+					TriangleOutData triangle;
+					triangle.triangle = { a,b,c };
+
+
+					const int viewportMinX = m_viewPort.x;
+					const int viewportMinY = m_viewPort.y;
+
+					const int viewportMaxX = m_viewPort.x + m_viewPort.width - 1;
+					const int viewportMaxY = m_viewPort.y + m_viewPort.height - 1;
+
+					FDB::Core::box2_t<float> clamp;
+					clamp.min = { std::min({ a.position.x, b.position.x, c.position.x }) ,
+					std::min({ a.position.y, b.position.y, c.position.y }) };
 					
-						VertexOutData vertexOut[3];
-						vertexOut[0].vertex = vertexShader(vA, copyVertex, m_vInBuffer);
-						vertexOut[0].position = interpret_t::GetPosition(vertexOut[0].vertex);
-						vertexOut[1].vertex = vertexShader(vB, copyVertex, m_vInBuffer);
-						vertexOut[1].position = interpret_t::GetPosition(vertexOut[1].vertex);
-						vertexOut[2].vertex = vertexShader(vC, copyVertex, m_vInBuffer);
-						vertexOut[2].position = interpret_t::GetPosition(vertexOut[2].vertex);
-						std::vector<VertexOutData> poly = RenderPath::Clip(vertexOut[0], vertexOut[1], vertexOut[2]);
-						for (std::size_t j = 1; j + 1 < poly.size(); ++j) {
-							VertexOutData a = RenderPath::Screen(RenderPath::Perspective(poly[0]), viewPort);
-							VertexOutData b = RenderPath::Screen(RenderPath::Perspective(poly[j]), viewPort);
-							VertexOutData c = RenderPath::Screen(RenderPath::Perspective(poly[j + 1]), viewPort);
-							
-									auto result = cullType::ValidArea(std::array<glm::vec<4, float>, 3>{ a.position, b.position, c.position });
-									if (!result.valid)
-										continue;
-									if (result.needSwap)
-									{
-										std::swap(b.position, c.position);
-									}
-									rasterizer_t::template Compute ({ a.vertex,b.vertex,c.vertex }, { a.position,b.position,c.position }, viewPort, imageData, copyVertex, m_vOutBuffer, pool);
+					clamp.max = { std::max({ a.position.x, b.position.x, c.position.x })
+						,std::max({ a.position.y, b.position.y, c.position.y }) };
 
-							
+
+					if (clamp.max.x <= viewportMinX ||
+						clamp.max.y <= viewportMinY ||
+						clamp.min.x >= m_viewPort.x + m_viewPort.width ||
+						clamp.min.y >= m_viewPort.y + m_viewPort.height)
+					{
+						continue;
+					}
+
+					FDB::Core::box2_t<int> clampInt;
+
+					clampInt.min = {
+						std::clamp(static_cast<int>(std::floor(clamp.min.x)),
+							viewportMinX, viewportMaxX),
+
+						std::clamp(static_cast<int>(std::floor(clamp.min.y)),
+							viewportMinY, viewportMaxY)
+					};
+
+					clampInt.max = {
+						std::clamp(static_cast<int>(std::ceil(clamp.max.x)) - 1,
+							viewportMinX, viewportMaxX),
+
+						std::clamp(static_cast<int>(std::ceil(clamp.max.y)) - 1,
+							viewportMinY, viewportMaxY)
+					};
+
+					
+
+					int minTileX = (clampInt.min.x - m_viewPort.x) / m_grid.tileSizeV;
+					int minTileY = (clampInt.min.y - m_viewPort.y) / m_grid.tileSizeV;
+
+					int maxTileX = (clampInt.max.x - m_viewPort.x) / m_grid.tileSizeV;
+					int maxTileY = (clampInt.max.y - m_viewPort.y) / m_grid.tileSizeV;
+					for (int y = minTileY; y <= maxTileY; ++y)
+					{
+						for (int x = minTileX; x <= maxTileX; ++x)
+						{
+							auto& tile = m_grid.GetTile(x, y);
+							tile.triangles.push_back(triangle);
+							tile.pushConstant.push_back(m_vertexData);
 						}
-					/*});*/
+					}
+				}
+			}
+		}
+		void Rasterize(Core::jobPool_t& pool)
+		{
+			
+			for (int y = 0; y < m_grid.tileCount.y; ++y) {
+				for (int x = 0; x < m_grid.tileCount.x; ++x) {
+
+
+					pool.PushJob([this, x, y, &pool]()
+						{
+							auto& tile = m_grid.GetTile(x, y);
+							auto* push = tile.pushConstant.data();
+							for (auto& t : tile.triangles)
+							{
+								rasterizer_t::template Compute({ t.triangle[0].vertex,t.triangle[1].vertex,t.triangle[2].vertex }, { t.triangle[0].position,t.triangle[1].position,t.triangle[2].position }, tile.viewPort, tile.buffer, *push, m_vOutBuffer, pool);
+								++push;
+							}
+						});
+				}
+			}
+
+			pool.WaitIdle();
+		}
+	private:
+
+		void GenerateTile(const viewPort_t& viewPort, FrameBuffer* frameBuffer)
+		{
+			m_viewPort = viewPort;
+			m_grid = TileGrid<32>(viewPort, frameBuffer);
+
+		}
+		void ClearTiles()
+		{
+			for (Tile& tile : m_grid.tiles)
+			{
+				tile.triangles.clear();
+				tile.pushConstant.clear();
 			}
 		}
 
-	private:
-
-		[[nodiscard]] static bool CullPass(float area, pos_array_t& position)
-		{
-			area = rasterizerOpt::cull_t::GetArea(position);
-			return rasterizerOpt::cull_t::ValidArea(area, position);
-		}
 		static constexpr std::size_t planeCount = 6;
 		enum class Plane : std::uint8_t
 		{
@@ -197,6 +341,24 @@ namespace FDB::Pipeline
 			Bottom = 5
 
 		};
+
+		static std::uint8_t GetOutCode(const VertexOutData& vertex)
+		{
+			return RenderPath::GetOutCodeN<0>(vertex)
+				| RenderPath::GetOutCodeN<1>(vertex)
+				| RenderPath::GetOutCodeN<2>(vertex)
+				| RenderPath::GetOutCodeN<3>(vertex) 
+				| RenderPath::GetOutCodeN<4>(vertex) 
+				| RenderPath::GetOutCodeN<5>(vertex);
+	
+		}
+
+		template<std::uint8_t N>
+		static std::uint8_t GetOutCodeN(
+			const VertexOutData& vertex)
+		{
+			return (static_cast<std::uint8_t>(!VertexInPlane<N>(vertex.position)) << N);
+		}
 		template<std::uint8_t N>
 		[[nodiscard]] static bool VertexInPlane(const glm::vec<4, float>& pos)
 		{
@@ -259,10 +421,15 @@ namespace FDB::Pipeline
 		}
 
 		template<std::uint8_t I>
-		static void ClipAttribute(std::vector<VertexOutData>& poly)
+		static void ClipAttribute(std::vector<VertexOutData>& poly,std::vector<VertexOutData>& copy)
 		{
-			const std::vector<VertexOutData> copy = std::move(poly);
+			if (poly.empty())
+				return;
+
+			copy.swap(poly);
 			poly.clear();
+
+			
 			for (std::size_t i = 0; i < copy.size(); ++i)
 			{
 				VertexOutData P = copy[i];
@@ -286,17 +453,15 @@ namespace FDB::Pipeline
 
 			}
 		}
-
-		[[nodiscard]] static std::vector<VertexOutData> Clip(const VertexOutData& A, const VertexOutData& B, const VertexOutData& C)
+		
+		static void Clip( std::vector<VertexOutData>& poly, std::vector<VertexOutData>& copy)
 		{
-			std::vector<VertexOutData> poly = { A,B,C };
-			[&] <std::uint8_t...N>(std::integer_sequence<std::uint8_t, N...>)
-			{
-				(RenderPath::ClipAttribute<N>(poly), ...);
-
-			}(std::make_integer_sequence<std::uint8_t, planeCount>());
-
-			return poly;
+			RenderPath::ClipAttribute<0>(poly, copy);
+			RenderPath::ClipAttribute<1>(poly, copy);
+			RenderPath::ClipAttribute<2>(poly, copy);
+			RenderPath::ClipAttribute<3>(poly, copy);
+			RenderPath::ClipAttribute<4>(poly, copy);
+			RenderPath::ClipAttribute<5>(poly, copy);
 		}
 
 		[[nodiscard]] static VertexOutData Perspective(const  VertexOutData& v)
@@ -321,6 +486,13 @@ namespace FDB::Pipeline
 		vOut_data_t m_vOutBuffer = {};
 		vertex_data_t m_vertexData = {};
 
+		std::vector<VertexOutData> m_poly;
+		std::vector<VertexOutData> m_copy;
+
+
+
+		viewPort_t m_viewPort;
+		TileGrid<32> m_grid = {};
 	};
 
 

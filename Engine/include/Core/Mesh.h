@@ -58,6 +58,13 @@ namespace FDB::Core
     };
     using mesh_t = Mesh;
 
+    struct MeshComp
+    {
+        FDB::Core::Mesh* mesh;
+        std::vector<FDB::Core::Material> mat;
+    };
+    
+
     struct MeshTools
     {
        [[nodiscard]] static std::unique_ptr<Mesh> LoadMesh(const std::filesystem::path& ObjFile);
