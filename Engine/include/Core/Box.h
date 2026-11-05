@@ -5,18 +5,21 @@
 #include <GLM/vec3.hpp>
 #include <GLM/vec4.hpp>
 
-
-template<typename T, size_t N> requires(N == 2 || N == 3)
-struct Box
+namespace FDB::Core
 {
-	using value_type = T;
-	glm::vec<N, value_type> min;
-	glm::vec<N, value_type> max;
-};
-template<typename T>
-using box2_t = Box<T, 2>;
-template<typename T>
-using box3_t = Box<T, 3>;
+
+	template<typename T, size_t N> requires(N == 2 || N == 3)
+		struct Box
+	{
+		using value_type = T;
+		glm::vec<N, value_type> min;
+		glm::vec<N, value_type> max;
+	};
+	template<typename T>
+	using box2_t = Box<T, 2>;
+	template<typename T>
+	using box3_t = Box<T, 3>;
+}
 
 
 #endif

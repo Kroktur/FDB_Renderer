@@ -77,6 +77,11 @@ namespace FDB::Core
 		m_dirty = true;
 	}
 
+	glm::vec3 Transform::GetLocalAxis(const glm::vec3& axe) const
+	{
+		return m_quat * axe;
+	}
+
 	void Transform::LookAt(const glm::vec3& target)
 	{
 		glm::vec3 forward = glm::normalize(target - m_position);

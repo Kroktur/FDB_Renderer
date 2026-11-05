@@ -45,6 +45,7 @@ namespace FDB::Core
 
 		void Rotate(const glm::vec3& rotation);
 
+		[[nodiscard]] glm::vec3 GetLocalAxis(const glm::vec3& axe) const;
 
 		void LookAt(const glm::vec3& target);
 

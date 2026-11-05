@@ -17,6 +17,9 @@
 #include "Core/Rect.h"
 #include "Core/ThreadPool.h"
 
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <Windows.h>
 
 namespace FDB::Pipeline
 {
@@ -255,13 +258,14 @@ namespace FDB::Pipeline
 	};
 
 
-	template<FDB::Pipeline::ValidVertexT VertexT,typename VOutData, auto(*fragmentShader)(const fragment_input_t<VertexT>&, const VOutData&), std::size_t dim = 8
+	template<FDB::Pipeline::ValidVertexT VertexT,typename PushConstantData,typename VOutData, auto(*fragmentShader)(const fragment_input_t<VertexT>&, const PushConstantData&, const VOutData&), std::size_t dim = 8
 	, ValidCullData cullT = default_cullData_t, ValidBlendData blendT = default_blendData_t, ValidDepthData depthT = default_depthData_t,
-	ValidWriteMaskData writeT = rgba_writeMaskData_t>requires(ValidFragmentFunction<VertexT, decltype(fragmentShader), const VOutData&>)
+	ValidWriteMaskData writeT = rgba_writeMaskData_t>requires(ValidFragmentFunction<VertexT, decltype(fragmentShader), const PushConstantData&,const VOutData&>)
 	struct TriangleRasterizer
 	{
 		using fragment = VertexT;
 		using fragment_out_t = VOutData;
+		using pushConstant_data_t = PushConstantData;
 		using triangle_t = std::array<fragment, 3>;
 		using viewPort_t = Rect<std::int32_t>;
 		using attributeData_t = AttributeRasterizerData<fragment>;
@@ -278,7 +282,7 @@ namespace FDB::Pipeline
 		{
 			triangle_t triangle ={};
 			float fixedInvArea = 0;
-			box2_t<std::int32_t> box = {};
+			Core::box2_t<std::int32_t> box = {};
 			deltaData_t<glm::vec<3, fixed_value_t>> fixedBaseEdgeData = {};
 			glm::vec<3, float> fixedBaseInvW = {};
 			glm::vec<3, float> fixedBaseZ = {};
@@ -301,14 +305,14 @@ namespace FDB::Pipeline
 			glm::vec<2, std::int32_t> pixel = {};
 			float fixedW = 0;
 			float fixedZ = 0;
-			std::atomic<Pixel>* pixelImagePtr = nullptr;
+			atomicPixel_t* pixelImagePtr = nullptr;
 		};
 
 
 	
 		
 	
-			static void Compute(const triangle_t& triangle,const std::array<glm::vec<4, float>, 3>& position, const viewPort_t& viewPort, const FrameBuffer& image, const fragment_out_t& fragmentOut,Core::jobPool_t& pool)
+			static void Compute(const triangle_t& triangle,const std::array<glm::vec<4, float>, 3>& position, const viewPort_t& viewPort,FrameBuffer* image, const pushConstant_data_t& pushConstants, const fragment_out_t& fragmentOut,Core::jobPool_t& pool)
 		{
 			float area = cullT::GetArea(position);
 			if (area <= 0)
@@ -346,10 +350,10 @@ namespace FDB::Pipeline
 			setup.topLeftRule[1] = TriangleRasterizer::IsTopLeft(fixedPos[1], fixedPos[2]);
 			setup.topLeftRule[2] = TriangleRasterizer::IsTopLeft(fixedPos[2], fixedPos[0]);
 
-			TriangleRasterizer::Loop(setup, image, fragmentOut,pool);
+			TriangleRasterizer::Loop(setup, image, pushConstants, fragmentOut,pool);
 		}
 	private:
-			static void Loop(const LoopSetup& setup, const FrameBuffer& image, const fragment_out_t& fragmentOut,Core::jobPool_t& pool)
+			static void Loop(const LoopSetup& setup,FrameBuffer* image, const pushConstant_data_t& pushConstants, const fragment_out_t& fragmentOut,Core::jobPool_t& pool)
 		{
 
 			BlockSetup blockSetup;
@@ -368,14 +372,14 @@ namespace FDB::Pipeline
 				blockSetup.block.blockSize.y = std::min(blockDim.y, setup.box.max.y - blockY + 1);
 				for (std::int32_t blockX = setup.box.min.x; blockX <= setup.box.max.x; blockX += blockDim.x)
 				{
-					pool.PushJob([blockX, blockY, setup, blockSetup, &fragmentOut, &image, &pool]()mutable
-					{
+					/*pool.PushJob([blockX, blockY, setup, blockSetup, pushConstants, &fragmentOut, &image, &pool]()mutable
+					{*/
 							blockSetup.block.blockSize.x = std::min(blockDim.x, setup.box.max.x - blockX + 1);
 							blockSetup.block.blockOrigin = { blockX, blockY };
 
 							deltaData_t<glm::vec<3, fixed_value_t>> fixedBlockEdgeData = TriangleRasterizer::InitializeStepEdgeData(blockSetup.block.blockOrigin, setup.box, blockSetup.block.blockSize, setup.fixedBaseEdgeData);
 							if (TriangleRasterizer::IsBlock<false>(fixedBlockEdgeData))
-								return;
+								continue;
 
 
 							TriangleRasterizer::UpdateLinearData(setup.fixedBaseInvW, fixedBlockEdgeData, setup.fixedInvArea, blockSetup.fixedWData);
@@ -385,13 +389,13 @@ namespace FDB::Pipeline
 
 							if (TriangleRasterizer::IsBlock<true>(fixedBlockEdgeData))
 							{
-								TriangleRasterizer::PixelLoop (setup.triangle, blockSetup, image, fragmentOut,pool);
+								TriangleRasterizer::PixelLoop (setup.triangle, blockSetup, image, pushConstants, fragmentOut,pool);
 							}
 							else
 							{
-								TriangleRasterizer::PixelLoop(setup.triangle, setup.topLeftRule, fixedBlockEdgeData, blockSetup, image, fragmentOut, pool);
+								TriangleRasterizer::PixelLoop(setup.triangle, setup.topLeftRule, fixedBlockEdgeData, blockSetup, image, pushConstants, fragmentOut, pool);
 							}
-					});
+				/*	});*/
 
 
 
@@ -399,7 +403,7 @@ namespace FDB::Pipeline
 				}
 			}
 		}
-			static void PixelLoop(const triangle_t& triangle,const BlockSetup& setup, const FrameBuffer& image, const fragment_out_t& fragmentOut, Core::jobPool_t& pool)
+			static void PixelLoop(const triangle_t& triangle,const BlockSetup& setup,  FrameBuffer* image, const pushConstant_data_t& pushConstants, const fragment_out_t& fragmentOut, Core::jobPool_t& pool)
 		{
 				FragmentSetup applySetup;
 				BlockSetup currentSetup = setup;
@@ -413,14 +417,14 @@ namespace FDB::Pipeline
 					applySetup.fixedInter = currentSetup.fixedInterData.data;
 
 					applySetup.pixel = { currentSetup.block.blockOrigin.x,currentSetup.block.blockOrigin.y + y };
-					applySetup.pixelImagePtr = image.atomicBuffer.data + (applySetup.pixel.y * image.atomicBuffer.size.x + applySetup.pixel.x);
+					applySetup.pixelImagePtr = image->atomicBuffer.data + (applySetup.pixel.y * image->atomicBuffer.size.x + applySetup.pixel.x);
 
 
 					for (std::int32_t x = 0; x < currentSetup.block.blockSize.x; ++x)
 					{
 						//pool.PushJob([triangle,applySetup,currentSetup, &image, fragmentShader, &pool]()
 						//	{
-								TriangleRasterizer::ApplyFragment(triangle, applySetup, currentSetup, fragmentOut);
+								TriangleRasterizer::ApplyFragment(triangle, applySetup, currentSetup, pushConstants, fragmentOut);
 //							});
 					
 						++applySetup.pixelImagePtr;
@@ -438,7 +442,7 @@ namespace FDB::Pipeline
 		}
 
 		
-			static void PixelLoop(const triangle_t& triangle, const std::array<bool, 3>& topLeftRule, const deltaData_t<glm::vec<3, fixed_value_t>>& edgeData, BlockSetup& setup, const FrameBuffer& image, const fragment_out_t& fragmentOut, Core::jobPool_t& pool)
+			static void PixelLoop(const triangle_t& triangle, const std::array<bool, 3>& topLeftRule, const deltaData_t<glm::vec<3, fixed_value_t>>& edgeData, BlockSetup& setup,  FrameBuffer* image, const pushConstant_data_t& pushConstants, const fragment_out_t& fragmentOut, Core::jobPool_t& pool)
 		{
 			FragmentSetup applySetup;
 			deltaData_t<glm::vec<3, fixed_value_t>> currentEdgeData = edgeData;
@@ -453,7 +457,7 @@ namespace FDB::Pipeline
 				applySetup.fixedInter = currentSetup.fixedInterData.data;
 
 				applySetup.pixel = { currentSetup.block.blockOrigin.x,currentSetup.block.blockOrigin.y + y };
-				applySetup.pixelImagePtr = image.atomicBuffer.data + (applySetup.pixel.y * image.atomicBuffer.size.x + applySetup.pixel.x);
+				applySetup.pixelImagePtr = image->atomicBuffer.data + (applySetup.pixel.y * image->atomicBuffer.size.x + applySetup.pixel.x);
 
 				for (std::int32_t x = 0; x < currentSetup.block.blockSize.x; ++x)
 				{
@@ -462,7 +466,7 @@ namespace FDB::Pipeline
 					{
 						//pool.PushJob([triangle, applySetup, currentSetup, &image, fragmentShader, &pool]()
 						//	{
-								TriangleRasterizer::ApplyFragment(triangle, applySetup, currentSetup, fragmentOut);
+								TriangleRasterizer::ApplyFragment(triangle, applySetup, currentSetup, pushConstants, fragmentOut);
 //							});
 					}
 				
@@ -486,87 +490,182 @@ namespace FDB::Pipeline
 		}
 	private:
 		
-			static void ApplyFragment(const triangle_t& triangle, const FragmentSetup& applySetup, const BlockSetup& blockSetup, const fragment_out_t& fragmentOut)
-		{
-			static constexpr fragmentState_t fragOutPut = fragOutput_v<fragment,decltype(fragmentShader),const VOutData&>;
+		//	static void ApplyFragment(const triangle_t& triangle, const FragmentSetup& applySetup, const BlockSetup& blockSetup, const pushConstant_data_t& pushConstants, const fragment_out_t& fragmentOut)
+		//{
+		//	static constexpr fragmentState_t fragOutPut = fragOutput_v<fragment,decltype(fragmentShader), const PushConstantData& ,const VOutData&>;
 
-			// early z test if possible
-			if constexpr (fragOutPut != fragmentState_t::DepthChange && depthT::zTestEnabled_v)
+		//	// early z test if possible
+		//	if constexpr (fragOutPut != fragmentState_t::DepthChange && depthT::zTestEnabled_v)
+		//	{
+		//		Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
+		//		if (!depthT::PassDepthTest(applySetup.fixedZ, oldPixel.z))
+		//			return;
+		//	}
+		//	// process fragment and create pixel
+		//	fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader), const PushConstantData&,const VOutData&>> out = TriangleRasterizer::ExecuteFragmentShader(applySetup, blockSetup, pushConstants, fragmentOut);
+		//	Pixel pixel{ applySetup.fixedZ, glm::vec4(0.f)};
+
+		//	// verify if need discard
+		//	if constexpr (fragOutPut != fragmentState_t::Keep)
+		//	{
+		//		if (out.discard)
+		//			return;
+		//	}
+		//	// assign out.z if needed
+		//	if constexpr (fragOutPut == fragmentState_t::DepthChange)
+		//		pixel.z = out.z;
+
+		//	// if z test is enable test it for the depth change to avoid useless compare exchange
+		//	if constexpr (fragOutPut == fragmentState_t::DepthChange && depthT::zTestEnabled_v)
+		//	{
+		//		Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
+		//		if (!depthT::PassDepthTest(pixel.z, oldPixel.z))
+		//			return;
+		//	}
+
+		//	Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
+		//	pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
+
+		//	// if no z write
+		//	if constexpr (!depthT::zWriteEnable_v)
+		//	{
+		//		// loop infinite
+		//		for (;;)
+		//		{
+		//			// try to emplace data
+		//			pixel.z = oldPixel.z;
+		//			if (applySetup.pixelImagePtr->compare_exchange_weak(
+		//				oldPixel,
+		//				pixel,
+		//				std::memory_order_relaxed,
+		//				std::memory_order_relaxed))
+		//			{
+		//				return;
+		//			}
+		//			pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
+
+		//		}
+		//	}
+		//	else
+		//	{
+		//		// loop while z is valid
+		//		while (depthT::PassDepthTest(pixel.z, oldPixel.z))
+		//		{
+		//			if (applySetup.pixelImagePtr->compare_exchange_weak(
+		//				oldPixel,
+		//				pixel,
+		//				std::memory_order_relaxed,
+		//				std::memory_order_relaxed))
+		//			{
+		//				return;
+		//			}
+		//			pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
+
+		//		}
+		//	}
+		//}
+			static void ApplyFragment(const triangle_t& triangle, const FragmentSetup& applySetup, const BlockSetup& blockSetup, const pushConstant_data_t& pushConstants, const fragment_out_t& fragmentOut)
 			{
-				Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
-				if (!depthT::PassDepthTest(applySetup.fixedZ, oldPixel.z))
-					return;
-			}
-			// process fragment and create pixel
-			fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader), const VOutData&>> out = TriangleRasterizer::ExecuteFragmentShader(applySetup, blockSetup, fragmentOut);
-			Pixel pixel{ applySetup.fixedZ, glm::vec4(0.f)};
-
-			// verify if need discard
-			if constexpr (fragOutPut != fragmentState_t::Keep)
-			{
-				if (out.discard)
-					return;
-			}
-			// assign out.z if needed
-			if constexpr (fragOutPut == fragmentState_t::DepthChange)
-				pixel.z = out.z;
-
-			// if z test is enable test it for the depth change to avoid useless compare exchange
-			if constexpr (fragOutPut == fragmentState_t::DepthChange && depthT::zTestEnabled_v)
-			{
-				Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
-				if (!depthT::PassDepthTest(pixel.z, oldPixel.z))
-					return;
-			}
-
-			Pixel oldPixel = applySetup.pixelImagePtr->load(std::memory_order_relaxed);
-			pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
-
-			// if no z write
-			if constexpr (!depthT::zWriteEnable_v)
-			{
-				// loop infinite
-				for (;;)
+				static constexpr fragmentState_t fragOutPut = fragOutput_v<fragment, decltype(fragmentShader), const PushConstantData&, const VOutData&>;
+				// early z test if possible
+				if constexpr (fragOutPut != fragmentState_t::DepthChange && depthT::zTestEnabled_v)
 				{
-					// try to emplace data
-					pixel.z = oldPixel.z;
-					if (applySetup.pixelImagePtr->compare_exchange_weak(
-						oldPixel,
-						pixel,
-						std::memory_order_relaxed,
-						std::memory_order_relaxed))
-					{
+					// es ce qu'il faut load ave
+					atomicPixel_t current = *applySetup.pixelImagePtr;
+					// TODO load thread safe 
+					if (!depthT::PassDepthTest(applySetup.fixedZ, std::bit_cast<float>(static_cast<std::uint32_t>(current >> 32))))
 						return;
-					}
-					pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
+				}
+				// process fragment and create pixel
+				fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader), const PushConstantData&, const VOutData&>> out = TriangleRasterizer::ExecuteFragmentShader(applySetup, blockSetup, pushConstants, fragmentOut);
+				std::uint32_t tmpColor = static_cast<std::uint32_t>(out.color.r * 255.f) << 24 | static_cast<std::uint32_t>(out.color.g * 255.f) << 16 | static_cast<std::uint32_t>(out.color.b * 255.f) << 8 | static_cast<std::uint32_t>(out.color.a * 255.f);
+				atomicPixel_t pixel{ static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(applySetup.fixedZ)) << 32 | static_cast<std::uint64_t>(tmpColor) };
 
+				// verify if need discard
+				if constexpr (fragOutPut != fragmentState_t::Keep)
+				{
+					if (out.discard)
+						return;
+				}
+
+				// assign out.z if needed
+				if constexpr (fragOutPut == fragmentState_t::DepthChange)
+					pixel = pixel & 0x00000000FFFFFFFFULL | static_cast<std::uint64_t>(std::bit_cast<std::uint32_t>(out.z)) << 32;
+
+				atomicPixel_t current = *applySetup.pixelImagePtr;
+
+				if constexpr (fragOutPut == fragmentState_t::DepthChange && depthT::zTestEnabled_v)
+				{
+
+					if (!depthT::PassDepthTest(std::bit_cast<float>(static_cast<std::uint32_t>(pixel >> 32)), std::bit_cast<float>(static_cast<std::uint32_t>(current >> 32))))
+						return;
+				}
+				std::uint32_t color = TriangleRasterizer::SetColor(tmpColor, static_cast<std::uint32_t>(current));
+				pixel = atomicPixel_t{ (pixel & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+				auto previous = current;
+				if constexpr(!depthT::zTestEnabled_v && !depthT::zWriteEnable_v)
+				{
+					for (;;)
+					{
+						auto previousValue = InterlockedCompareExchangeNoFence64(reinterpret_cast<volatile LONG64*>(applySetup.pixelImagePtr)
+							, static_cast<LONG64>(pixel)
+							, static_cast<LONG64>(previous));
+						if (previousValue == static_cast<LONG64>(previous))
+							return;
+						previous = static_cast<atomicPixel_t>(previousValue);
+
+						pixel = atomicPixel_t{ (previousValue & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+					}
+				}
+				if constexpr (!depthT::zTestEnabled_v && depthT::zWriteEnable_v)
+				{
+					for (;;)
+					{
+						auto previousValue = InterlockedCompareExchangeNoFence64(reinterpret_cast<volatile LONG64*>(applySetup.pixelImagePtr)
+							, static_cast<LONG64>(pixel)
+							, static_cast<LONG64>(previous));
+						if (previousValue == static_cast<LONG64>(previous))
+							return;
+						previous = static_cast<atomicPixel_t>(previousValue);
+						pixel = atomicPixel_t{ (pixel & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+					}
+				}
+				if constexpr (depthT::zTestEnabled_v && !depthT::zWriteEnable_v)
+				{
+					while (depthT::PassDepthTest(std::bit_cast<float>(static_cast<std::uint32_t>(pixel >> 32)), std::bit_cast<float>(static_cast<std::uint32_t>(previous >> 32))))
+					{
+						auto previousValue = InterlockedCompareExchangeNoFence64(reinterpret_cast<volatile LONG64*>(applySetup.pixelImagePtr)
+							, static_cast<LONG64>(pixel)
+							, static_cast<LONG64>(previous));
+						if (previousValue == static_cast<LONG64>(previous))
+							return;
+						previous = static_cast<atomicPixel_t>(previousValue);
+
+						pixel = atomicPixel_t{ (previousValue & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+					}
+				}
+				if constexpr (depthT::zTestEnabled_v && depthT::zWriteEnable_v)
+				{
+					while (depthT::PassDepthTest(std::bit_cast<float>(static_cast<std::uint32_t>(pixel >> 32)), std::bit_cast<float>(static_cast<std::uint32_t>(previous >> 32))))
+					{
+						auto previousValue = InterlockedCompareExchangeNoFence64(reinterpret_cast<volatile LONG64*>(applySetup.pixelImagePtr)
+							, static_cast<LONG64>(pixel)
+							, static_cast<LONG64>(previous));
+						if (previousValue == static_cast<LONG64>(previous))
+							return;
+						previous = static_cast<atomicPixel_t>(previousValue);
+						pixel = atomicPixel_t{ (pixel & 0xFFFFFFFF00000000ULL) | static_cast<std::uint64_t>(color) };
+
+					}
 				}
 			}
-			else
-			{
-				// loop while z is valid
-				while (depthT::PassDepthTest(pixel.z, oldPixel.z))
-				{
-					if (applySetup.pixelImagePtr->compare_exchange_weak(
-						oldPixel,
-						pixel,
-						std::memory_order_relaxed,
-						std::memory_order_relaxed))
-					{
-						return;
-					}
-					pixel.color = TriangleRasterizer::SetColor(out.color, oldPixel.color);
-
-				}
-			}
-		}
-		static glm::vec4 SetColor(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& dstColor)
+		static std::uint32_t SetColor(std::uint32_t srcColor, std::uint32_t dstColor)
 		{
-			glm::vec<4, float> realColor = glm::clamp(blendT::Blend(srcColor, dstColor), 0.f, 1.f);
+			std::uint32_t realColor = blendT::Blend(srcColor, dstColor);
 			return  writeT::Apply(realColor, dstColor);
 		}
 
-		[[nodiscard]] static  fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader),const fragment_out_t&>> ExecuteFragmentShader(const FragmentSetup& applySetup, const BlockSetup& blockSetup, const fragment_out_t& fragmentOut)
+		[[nodiscard]] static  fragment_output_t<fragOutput_v<fragment, decltype(fragmentShader), const PushConstantData&,const fragment_out_t&>> ExecuteFragmentShader(const FragmentSetup& applySetup, const BlockSetup& blockSetup, const pushConstant_data_t& pushConstants, const fragment_out_t& fragmentOut)
 		{
 			fragment_input_t<fragment> fixedFragInput;
 			
@@ -595,7 +694,7 @@ namespace FDB::Pipeline
 			fixedFragInput.zDx = blockSetup.fixedZData.delta[0];
 			fixedFragInput.zDy = blockSetup.fixedZData.delta[1];
 
-			return fragmentShader(fixedFragInput,fragmentOut);
+			return fragmentShader(fixedFragInput, pushConstants, fragmentOut);
 		}
 		//
 
@@ -613,9 +712,9 @@ namespace FDB::Pipeline
 		// struct Rasterisation Rule
 
 
-		[[nodiscard]] static box2_t<int> GetBox(const std::array<glm::vec<4, float>, 3>& pos, const FDB::Rect<std::int32_t>& viewPort)
+		[[nodiscard]] static Core::box2_t<int> GetBox(const std::array<glm::vec<4, float>, 3>& pos, const FDB::Rect<std::int32_t>& viewPort)
 		{
-			box2_t<int> box;
+			Core::box2_t<int> box;
 			box.min.x = std::max(viewPort.x, static_cast<int>(std::min({ pos[0].x, pos[1].x, pos[2].x })));
 			box.max.x = std::min(viewPort.x + viewPort.width - 1, static_cast<int>(std::max({ pos[0].x, pos[1].x, pos[2].x })));
 			box.min.y = std::max(viewPort.y, static_cast<int>(std::min({ pos[0].y, pos[1].y, pos[2].y })));
@@ -625,7 +724,7 @@ namespace FDB::Pipeline
 
 
 		template<typename T,std::size_t N>requires(N > 1 && N <= 4)
-		[[nodiscard]] static glm::vec<3, T> InitializeEdgeFunction(const std::array<glm::vec<N, T>, 3>& pos, const box2_t<std::int32_t>& box,T scale )
+		[[nodiscard]] static glm::vec<3, T> InitializeEdgeFunction(const std::array<glm::vec<N, T>, 3>& pos, const Core::box2_t<std::int32_t>& box,T scale )
 		{
 			using edge_fn_t = EdgeFunction<T>;
 
@@ -645,7 +744,7 @@ namespace FDB::Pipeline
 			};
 		}
 		template<typename T>
-		[[nodiscard]] static deltaData_t<glm::vec<3, T>> InitializeStepEdgeData(const glm::vec<2, std::int32_t>& block, const box2_t<std::int32_t>& box, const glm::vec<2, std::int32_t>& blockSize, const deltaData_t<glm::vec<3, T>>& baseEdge)
+		[[nodiscard]] static deltaData_t<glm::vec<3, T>> InitializeStepEdgeData(const glm::vec<2, std::int32_t>& block, const Core::box2_t<std::int32_t>& box, const glm::vec<2, std::int32_t>& blockSize, const deltaData_t<glm::vec<3, T>>& baseEdge)
 		{
 			glm::vec<2, T> step = { static_cast<T>(block.x - box.min.x),static_cast<T>(block.y - box.min.y)};
 			glm::vec<2, T> blockStep = { static_cast<T>(blockSize.x - 1) , static_cast<T>(blockSize.y - 1 )};

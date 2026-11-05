@@ -12,6 +12,11 @@ namespace FDB
 		value_type y = 0;
 		value_type width = 0;
 		value_type height = 0;
+
+		bool operator==(const Rect& other) const
+		{
+			return x == other.x && y == other.y && width == other.width && height == other.height;
+		}
 	};
 }
 

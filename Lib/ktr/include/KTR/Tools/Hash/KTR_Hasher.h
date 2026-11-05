@@ -14,7 +14,7 @@
 #include "KTR_FNV_1A.h"
 #endif
 
-#include "Tools/META/KTR_MetaTools.h"
+#include "KTR/Tools/META/KTR_MetaTools.h"
 
 namespace KTR
 {

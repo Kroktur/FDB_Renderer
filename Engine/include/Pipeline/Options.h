@@ -3,7 +3,7 @@
 
 #include <GLM/common.hpp>
 #include <GLM/vec4.hpp>
-
+#include <algorithm>
 #include "Atribute.h"
 #include "EdgeFunction.h"
 
@@ -141,16 +141,18 @@ namespace FDB::Pipeline
 	struct ColorHelper
 	{
 		template<BlendFactor dataT>
-		static glm::vec<4, float> FactorToColor(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& dstColor)
+		static std::uint32_t FactorToColor(std::uint32_t srcColor, std::uint32_t dstColor)
 		{
-	
+			static constexpr std::uint32_t zero = 0;
+			static  constexpr  std::uint32_t one = 0xFFFFFFFF;
+
 			if constexpr (dataT == BlendFactor::Zero)
 			{
-				return glm::vec<4, float>(0.f);
+				return zero;
 			}
 			else if constexpr (dataT == BlendFactor::One)
 			{
-				return glm::vec<4, float>(1.f);
+				return one;
 			}
 			else if constexpr (dataT == BlendFactor::SrcColor)
 			{
@@ -158,7 +160,17 @@ namespace FDB::Pipeline
 			}
 			else if constexpr (dataT == BlendFactor::OneMinusSrcColor)
 			{
-				return  glm::vec4(1.f) - srcColor;
+				std::uint16_t a = static_cast<std::uint16_t>(srcColor & 0xFF);
+				std::uint16_t b = static_cast<std::uint16_t>((srcColor >> 8) & 0xFF);
+				std::uint16_t g = static_cast<std::uint16_t>((srcColor >> 16) & 0xFF);
+				std::uint16_t r = static_cast<std::uint16_t>((srcColor >> 24) & 0xFF);
+
+				r = 255 - r;
+				g = 255 - g;
+				b = 255 - b;
+				a = 255 - a;
+
+				return (r << 24) | (g << 16) | (b << 8) | a;
 			}
 			else if constexpr (dataT == BlendFactor::DstColor)
 			{
@@ -166,27 +178,51 @@ namespace FDB::Pipeline
 			}
 			else if constexpr (dataT == BlendFactor::OneMinusDstColor)
 			{
-				return glm::vec4(1.f) - dstColor;
+				std::uint16_t a = static_cast<std::uint16_t>(dstColor & 0xFF);
+				std::uint16_t b = static_cast<std::uint16_t>((dstColor >> 8) & 0xFF);
+				std::uint16_t g = static_cast<std::uint16_t>((dstColor >> 16) & 0xFF);
+				std::uint16_t r = static_cast<std::uint16_t>((dstColor >> 24) & 0xFF);
+
+				r = 255 - r;
+				g = 255 - g;
+				b = 255 - b;
+				a = 255 - a;
+
+				return (r << 24) | (g << 16) | (b << 8) | a;
 			}
 			else if constexpr (dataT == BlendFactor::SrcAlpha)
 			{
-				return glm::vec<4, float>(srcColor.a);
+				std::uint16_t alpha = static_cast<std::uint16_t>((srcColor) & 0xFF);
+				return  alpha | (alpha << 8) | (alpha << 16) | (alpha << 24);
 			}
 			else if constexpr (dataT == BlendFactor::OneMinusSrcAlpha)
 			{
-				return glm::vec4(1.f) - glm::vec<4, float>(srcColor.a);
+				std::uint16_t alpha = static_cast<std::uint16_t>((srcColor) & 0xFF);
+				std::uint16_t r = 255 - alpha;
+				std::uint16_t g = 255 - alpha;
+				std::uint16_t b = 255 - alpha;
+				std::uint16_t a = 255 - alpha;
+
+				return (r << 24) | (g << 16) | (b << 8) | a;
 			}
 			else if constexpr (dataT == BlendFactor::DstAlpha)
 			{
-				return glm::vec<4, float>(dstColor.a);
+				std::uint16_t alpha = static_cast<std::uint16_t>((dstColor) & 0xFF);
+				return  alpha | (alpha << 8) | (alpha << 16) | (alpha << 24);
 			}
 			else
 			{
-				return glm::vec4(1.f) - glm::vec<4, float>(dstColor.a);
+				std::uint16_t alpha = static_cast<std::uint16_t>((dstColor) & 0xFF);
+				std::uint16_t r = 255 - alpha;
+				std::uint16_t g = 255 - alpha;
+				std::uint16_t b = 255 - alpha;
+				std::uint16_t a = 255 - alpha;
+
+				return (r << 24) | (g << 16) | (b << 8) | a;
 			}
 		}
 		template<BlendFactor factorSrcT, BlendFactor factorDstT, BlendOp opT>
-		static glm::vec<4, float> ColorToBlend(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& dstColor)
+		static std::uint32_t ColorToBlend(std::uint32_t srcColor, std::uint32_t dstColor)
 		{
 			if constexpr (opT == BlendOp::None)
 			{
@@ -194,34 +230,74 @@ namespace FDB::Pipeline
 			}
 			else if constexpr (opT == BlendOp::Add)
 			{
-				return srcColor * ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor) + dstColor * ColorHelper::FactorToColor<factorDstT>(srcColor, dstColor);
+				return ProcessFactor<true>(srcColor , ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor) , dstColor , ColorHelper::FactorToColor<factorDstT>(srcColor, dstColor));
 			}
 			else if constexpr (opT == BlendOp::Sub)
 			{
-				return srcColor * ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor) - dstColor * ColorHelper::FactorToColor<factorDstT>(srcColor, dstColor);
+				return ProcessFactor<false>(srcColor , ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor) , dstColor , ColorHelper::FactorToColor<factorDstT>(srcColor, dstColor));
 			}
 			else if constexpr (opT == BlendOp::RSub)
 			{
-				return   dstColor * ColorHelper::FactorToColor<factorDstT>(srcColor, dstColor) - srcColor * ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor);
+				return ProcessFactor<false>(dstColor , ColorHelper::FactorToColor<factorDstT>(srcColor, dstColor) , srcColor , ColorHelper::FactorToColor<factorSrcT>(srcColor, dstColor));
 			}
 			else if constexpr (opT == BlendOp::Min)
 			{
-				return glm::min(srcColor, dstColor);
+				return std::min(srcColor, dstColor);
 			}
 			else
 			{
-				return glm::max(srcColor, dstColor);
+				return std::max(srcColor, dstColor);
 			}
 		}
-	
+	private:
+		template<bool plus>
+		static std::uint32_t ProcessFactor(std::uint32_t lhsColor, std::uint32_t lhsFactor, std::uint32_t rhsColor, std::uint32_t rhsFactor )
+		{
+			std::int32_t lhsColorR = static_cast<std::int32_t>((lhsColor >> 24) & 0xFF);
+			std::int32_t lhsColorG = static_cast<std::int32_t>((lhsColor >> 16) & 0xFF);
+			std::int32_t lhsColorB = static_cast<std::int32_t>((lhsColor >> 8) & 0xFF);
+			std::int32_t lhsColorA = static_cast<std::int32_t>((lhsColor) & 0xFF);
+			std::int32_t lhsFactorR = static_cast<std::int32_t>((lhsFactor >> 24) & 0xFF);
+			std::int32_t lhsFactorG = static_cast<std::int32_t>((lhsFactor >> 16) & 0xFF);
+			std::int32_t lhsFactorB = static_cast<std::int32_t>((lhsFactor >> 8) & 0xFF);
+			std::int32_t lhsFactorA = static_cast<std::int32_t>((lhsFactor) & 0xFF);
+			std::int32_t rhsColorR = static_cast<std::int32_t>((rhsColor >> 24) & 0xFF);
+			std::int32_t rhsColorG = static_cast<std::int32_t>((rhsColor >> 16) & 0xFF);
+			std::int32_t rhsColorB = static_cast<std::int32_t>((rhsColor >> 8) & 0xFF);
+			std::int32_t rhsColorA = static_cast<std::int32_t>((rhsColor) & 0xFF);
+			std::int32_t rhsFactorR = static_cast<std::int32_t>((rhsFactor >> 24) & 0xFF);
+			std::int32_t rhsFactorG = static_cast<std::int32_t>((rhsFactor >> 16) & 0xFF);
+			std::int32_t rhsFactorB = static_cast<std::int32_t>((rhsFactor >> 8) & 0xFF);
+			std::int32_t rhsFactorA = static_cast<std::int32_t>((rhsFactor) & 0xFF);
+
+			if constexpr (plus)
+			{
+				std::uint8_t r = std::clamp((lhsColorR * lhsFactorR + rhsColorR * rhsFactorR)/ 255, 0, 255);
+				std::uint8_t g = std::clamp((lhsColorG * lhsFactorG + rhsColorG * rhsFactorG)/ 255, 0, 255);
+				std::uint8_t b = std::clamp((lhsColorB * lhsFactorB + rhsColorB * rhsFactorB)/ 255, 0, 255);
+				std::uint8_t a = std::clamp((lhsColorA * lhsFactorA + rhsColorA * rhsFactorA)/ 255, 0, 255);
+				return  r << 24 | g << 16 | b << 8 | a;
+			}
+			else
+			{
+				std::uint8_t r = std::clamp((lhsColorR * lhsFactorR - rhsColorR * rhsFactorR)/ 255, 0, 255);
+				std::uint8_t g = std::clamp((lhsColorG * lhsFactorG - rhsColorG * rhsFactorG)/ 255, 0, 255);
+				std::uint8_t b = std::clamp((lhsColorB * lhsFactorB - rhsColorB * rhsFactorB)/ 255, 0, 255);
+				std::uint8_t a = std::clamp((lhsColorA * lhsFactorA - rhsColorA * rhsFactorA)/ 255, 0, 255);
+				return  r << 24 | g << 16 | b << 8 | a;
+				
+			}
+		}
+		
 	};
+
 	
 	template<BlendFactor factorSrcT, BlendFactor factorDstT, BlendOp opT >
 	struct BlendData
 	{
-		using color_t = glm::vec<4, float>;
+		using color_t =std::uint32_t;
 	
-		static color_t Blend(const color_t& srcColor, const color_t& dstColor)
+		static color_t Blend( color_t srcColor,  color_t dstColor)
 		{
 			return ColorHelper::ColorToBlend<factorSrcT, factorDstT, opT>(srcColor, dstColor);
 		}
@@ -390,17 +466,25 @@ namespace FDB::Pipeline
 	struct WriteMaskData
 	{
 		static constexpr std::uint8_t mask = static_cast<std::uint8_t>(writeMaks::None) | (static_cast<std::uint8_t>(masks) | ...);
-		static glm::vec<4,float> Apply(const glm::vec<4, float>& srcColor, const glm::vec<4, float>& dstColor)
+		static std::uint32_t Apply(std::uint32_t srcColor, std::uint32_t dstColor)
 		{
-			glm::vec<4, float> result = dstColor;
+			static constexpr std::uint32_t rMask = 0xFF000000u;
+			static constexpr std::uint32_t gMask = 0x00FF0000u;
+			static constexpr std::uint32_t bMask = 0x0000FF00u;
+			static constexpr std::uint32_t aMask = 0x000000FFu;
+			static constexpr std::uint32_t allMask = 0xFFFFFFFFu;
+
+			std::uint32_t result = dstColor;
+
 			if constexpr (mask & static_cast<std::uint8_t>(writeMaks::R))
-				result.r = srcColor.r;
+				result = (result & (allMask & ~rMask)) | (srcColor & rMask);
 			if constexpr (mask & static_cast<std::uint8_t>(writeMaks::G))
-				result.g = srcColor.g;
+				result = (result & (allMask & ~gMask)) | (srcColor & gMask);
 			if constexpr (mask & static_cast<std::uint8_t>(writeMaks::B))
-				result.b = srcColor.b;
+				result = (result & (allMask & ~bMask)) | (srcColor & bMask);
 			if constexpr (mask & static_cast<std::uint8_t>(writeMaks::A))
-				result.a = srcColor.a;
+				result = (result & (allMask & ~aMask)) | (srcColor & aMask);
+
 			return result;
 		}
 	};
