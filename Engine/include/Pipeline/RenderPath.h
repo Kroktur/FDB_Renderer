@@ -232,12 +232,6 @@ namespace FDB::Pipeline
 					triangle.triangle = { a,b,c };
 
 
-					const int viewportMinX = m_viewPort.x;
-					const int viewportMinY = m_viewPort.y;
-
-					const int viewportMaxX = m_viewPort.x + m_viewPort.width - 1;
-					const int viewportMaxY = m_viewPort.y + m_viewPort.height - 1;
-
 					FDB::Core::box2_t<float> clamp;
 					clamp.min = { std::min({ a.position.x, b.position.x, c.position.x }) ,
 					std::min({ a.position.y, b.position.y, c.position.y }) };
@@ -246,8 +240,8 @@ namespace FDB::Pipeline
 						,std::max({ a.position.y, b.position.y, c.position.y }) };
 
 
-					if (clamp.max.x <= viewportMinX ||
-						clamp.max.y <= viewportMinY ||
+					if (clamp.max.x <= m_viewPort.x ||
+						clamp.max.y <= m_viewPort.y ||
 						clamp.min.x >= m_viewPort.x + m_viewPort.width ||
 						clamp.min.y >= m_viewPort.y + m_viewPort.height)
 					{
@@ -257,19 +251,19 @@ namespace FDB::Pipeline
 					FDB::Core::box2_t<int> clampInt;
 
 					clampInt.min = {
-						std::clamp(static_cast<int>(std::floor(clamp.min.x)),
-							viewportMinX, viewportMaxX),
+						std::clamp(static_cast<int>(clamp.min.x),
+							m_viewPort.x,  m_viewPort.x + m_viewPort.width - 1),
 
-						std::clamp(static_cast<int>(std::floor(clamp.min.y)),
-							viewportMinY, viewportMaxY)
+						std::clamp(static_cast<int>(clamp.min.y),
+							m_viewPort.y,  m_viewPort.y + m_viewPort.height - 1)
 					};
 
 					clampInt.max = {
-						std::clamp(static_cast<int>(std::ceil(clamp.max.x)) - 1,
-							viewportMinX, viewportMaxX),
+						std::clamp(static_cast<int>(clamp.max.x) ,
+							m_viewPort.x,  m_viewPort.x + m_viewPort.width - 1),
 
-						std::clamp(static_cast<int>(std::ceil(clamp.max.y)) - 1,
-							viewportMinY, viewportMaxY)
+						std::clamp(static_cast<int>(clamp.max.y) ,
+							m_viewPort.y,  m_viewPort.y + m_viewPort.height - 1)
 					};
 
 					
@@ -291,6 +285,9 @@ namespace FDB::Pipeline
 				}
 			}
 		}
+
+
+
 		void Rasterize(Core::jobPool_t& pool)
 		{
 			

@@ -169,10 +169,10 @@
 				FDB::Core::entity e = reg.CreateEntity();
 				FDB::Core::Transform transform;
 				
-				transform.ScaleUp({ 3.f,3.f,3.f });
+				transform.ScaleUp({ 2.f,2.f,2.f });
 				transform.Rotate(glm::pi<float>() / 2.0f, { 0,1,0 });
 				FDB::Core::MeshComp mesh;
-				mesh.mesh = FDB::Core::meshLoader_t::Load("polaris.obj");
+				mesh.mesh = FDB::Core::meshLoader_t::Load("bloc_1x1.obj");
 				for (std::size_t i = 0; i < mesh.mesh->subMeshes.size(); ++i)
 					mesh.mat.push_back(material);
 				Rotate r{};
