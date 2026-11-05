@@ -132,8 +132,155 @@
 	};
 	
 
+	struct BaseRenderScene : public FDB::Scene::BasicScene
+	{
+		using renderPath_t = FDB::Pipeline::RenderPath<
+			vertIn_t,
+			vertOut_t,
+			vertData_t,
+			pathInData_t,
+			pathOutData_t,
+			&FDB::Render::PBRShader::VertexShader,
+			&FDB::Render::PBRShader::FragmentShader<false>,
+			FDB::Pipeline::default_rasterizerOpt_t>;
+
+
+		using renderPath2D_t = FDB::Pipeline::RenderPath<
+			FDB::Core::VertexUi,
+			FDB::Core::VSOutput,
+			FDB::Render::UiShaders::PushConstant,
+			FDB::Render::UiShaders::ubo,
+			FDB::Render::UiShaders::ubo,
+			&FDB::Render::UiShaders::VertexShader,
+			&FDB::Render::UiShaders::FragmentShader,
+			FDB::Pipeline::rasterizerOpt_t<FDB::Pipeline::default_cullData_t
+			, FDB::Pipeline::blendData_t<FDB::Pipeline::BlendFactor::SrcAlpha
+			, FDB::Pipeline::BlendFactor::OneMinusSrcAlpha
+			, FDB::Pipeline::BlendOp::Add>
+			, FDB::Pipeline::depthData_t<false, false
+			, FDB::Pipeline::DepthOp::Never>
+			, FDB::Pipeline::rgba_writeMaskData_t>>;
+
+	public:
+		void InitScene() override
+		{
+			m_baseMaterials.baseColor = FDB::Core::textureLoader_t::Load("Textures/Base/base_color_map.png");
+			m_baseMaterials.normalMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_normal_map.png");
+			m_baseMaterials.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_emissive_map.png");
+			m_baseMaterials.OMRMap = FDB::Core::textureLoader_t::Load("Textures/Base/base_OMR_map.png");
+			m_baseUi = FDB::Core::textureLoader_t::Load("White.png");
+		}
+		void Render(FDB::Core::JobPool& pool) override
+		{
+
+			auto image = m_renderer->GetFrameBuffer();
+			auto viewPort = m_renderer->GetViewPort();
+			m_pipeline.Setup(viewPort, &image);
+			m_pipeline2D.Setup(viewPort, &image);
+
+			auto& cams = m_reg.GetContainer<FDB::Core::Camera>();
+			auto& transforms = m_reg.GetContainer<FDB::Core::Transform>();
+			auto& meshs = m_reg.GetContainer<FDB::Core::MeshComp>();
+			auto& uis = m_reg.GetContainer<FDB::Core::Ui>();
+			auto& transform2ds = m_reg.GetContainer<FDB::Core::Transform2D>();
+			auto& texts = m_reg.GetContainer<FDB::Core::Text>();
+			auto& mesh2ds = m_reg.GetContainer<FDB::Core::Mesh2D>();
+			auto& lights = m_reg.GetContainer<FDB::Core::Light>();
+
+			// base Pipeline
+			{
+				auto& eS = m_reg.GetEntitiesView<FDB::Core::Camera, FDB::Core::Transform>();
+				cams[eS[0]].Update(transforms[eS[0]].GetModelM());
+				m_pipeline.BindVInData(cams[eS[0]].GetData());
+				m_reg.GetEntitiesView<FDB::Core::Light>();
+				m_lDatas.clear();
+				for (auto e : eS)
+					m_lDatas.push_back(lights[e].GetData());
+				FDB::Render::fragmentShaderData outD{ m_lDatas };
+				m_pipeline.BindVOutData(outD);
+				m_reg.GetEntitiesView<FDB::Core::MeshComp, FDB::Core::Transform>();
+
+
+				for (auto e : eS)
+				{
+					auto& mesh = meshs[e];
+					bool defaultMat = mesh.mat.empty();
+					FDB::Core::Material* mat = defaultMat ? nullptr : mesh.mat.data();
+					for (auto& sub : mesh.mesh->subMeshes)
+					{
+						if (defaultMat)
+						{
+							m_pipeline.BindVertexData({ transforms[e].GetModelM(),m_baseMaterials });
+							m_pipeline.DrawTile(sub.vertices.data(), sub.indices.data(), sub.indices.size());
+						}
+						else
+						{
+							m_pipeline.BindVertexData({ transforms[e].GetModelM(),*mat });
+							m_pipeline.DrawTile(sub.vertices.data(), sub.indices.data(), sub.indices.size());
+							++mat;
+						}
+					}
+				}
+				m_pipeline.End(pool);
+			}
+			// ui pipeline
+			{
+				float aspectRatio = static_cast<float>(viewPort.width) / static_cast<float>(viewPort.height);
+				FDB::Render::UiShaders::PushConstant push;
+				push.aspectRatio = aspectRatio;
+				auto& eS = m_reg.GetEntitiesView<FDB::Core::Ui, FDB::Core::Transform2D, FDB::Core::Text>();
+
+				for (auto e : eS)
+				{
+					auto& ui = uis[e];
+					auto& transform = transform2ds[e];
+					auto& text = texts[e];
+					push.inColor = ui.GetColor();
+					push.texture1 = text.GetFont()->GetTexture();
+					push.texture2 = text.GetTexture();
+					transform.SetPosition(ui.GetPosNdc(aspectRatio));
+					transform.SetScale(ui.GetScaleNdc(aspectRatio));
+					push.model = transform.GetModel();
+					m_pipeline2D.BindVertexData(push);
+					auto data = text.GetBufferData();
+					m_pipeline2D.DrawTile(data.vertices, data.indices, data.indicesCount);
+				}
+				m_reg.GetEntitiesView<FDB::Core::Ui, FDB::Core::Transform2D, FDB::Core::Mesh2D>();
+				for (auto e : eS)
+				{
+					auto& ui = uis[e];
+					auto& transform = transform2ds[e];
+					auto& mesh2d = mesh2ds[e];
+					push.inColor = ui.GetColor();
+					push.texture1 = m_baseUi;
+					push.texture2 = mesh2d.texture;
+					transform.SetPosition(ui.GetPosNdc(aspectRatio));
+					transform.SetScale(ui.GetScaleNdc(aspectRatio));
+					push.model = transform.GetModel();
+					m_pipeline2D.BindVertexData(push);
+					auto data = mesh2d.GetBufferData();
+					m_pipeline2D.DrawTile(data.vertices, data.indices, data.indicesCount);
+				}
+
+				m_pipeline2D.End(pool);
+			}
+
+		}
+	protected:
+		FDB::Core::Registry m_reg;
+		FDB::Core::Texture* m_baseUi = nullptr;
+		FDB::Core::Material m_baseMaterials;
+
+		std::vector<FDB::Core::lightData_t> m_lDatas;
+		renderPath_t m_pipeline;
+		renderPath2D_t m_pipeline2D;
+
+	};
+
+
+
 		
-	struct SampleScene : public FDB::Scene::BasicScene
+	struct SampleScene : public BaseRenderScene
 	{
 	public:
 		using renderPath_t = FDB::Pipeline::RenderPath<
@@ -159,6 +306,7 @@
 	protected:
 		void InitScene() override
 		{
+			BasicScene::InitScene();
 			FDB::Core::Material material;
 			material.baseColor = FDB::Core::textureLoader_t::Load("Textures/BaseColor.png");
 			material.normalMap = FDB::Core::textureLoader_t::Load("Textures/Normal.png");
@@ -166,7 +314,7 @@
 			material.OMRMap = FDB::Core::textureLoader_t::Load("Textures/ORM.png");
 			// mesh 1
 			{
-				FDB::Core::entity e = reg.CreateEntity();
+				FDB::Core::entity e = m_reg.CreateEntity();
 				FDB::Core::Transform transform;
 				
 				transform.ScaleUp({ 2.f,2.f,2.f });
@@ -176,11 +324,11 @@
 				for (std::size_t i = 0; i < mesh.mesh->subMeshes.size(); ++i)
 					mesh.mat.push_back(material);
 				Rotate r{};
-				reg.AddComponents(e, std::move(transform),std::move(mesh),std::move(r));
+				m_reg.AddComponents(e, std::move(transform),std::move(mesh),std::move(r));
 			}
 			// mesh 2
 			{
-				FDB::Core::entity e = reg.CreateEntity();
+				FDB::Core::entity e = m_reg.CreateEntity();
 
 				FDB::Core::Transform transform;
 				transform.SetPosition(glm::vec3{ 0,0,1 });
@@ -188,7 +336,7 @@
 				mesh.mesh = FDB::Core::meshLoader_t::Load("bloc_1x1.obj");
 				for (std::size_t i = 0; i < mesh.mesh->subMeshes.size(); ++i)
 					mesh.mat.push_back(material);
-				reg.AddComponents(e, std::move(transform), std::move(mesh));
+				m_reg.AddComponents(e, std::move(transform), std::move(mesh));
 			}
 			// procedural Mesh
 			m_SphereMesh = std::make_unique<FDB::Core::Mesh>();
@@ -201,7 +349,7 @@
 			m_SphereMesh->subMeshes.push_back(std::move(sub));
 			FDB::Core::MeshTools::ComputeTangent(*m_SphereMesh);
 			{
-				FDB::Core::entity e = reg.CreateEntity();
+				FDB::Core::entity e = m_reg.CreateEntity();
 				FDB::Core::Transform transform;
 
 				transform.SetPosition(glm::vec3{ 0,0,-10 });
@@ -209,22 +357,22 @@
 				FDB::Core::MeshComp mesh;
 				mesh.mesh = m_SphereMesh.get();
 
-				reg.AddComponents(e, std::move(transform), std::move(mesh));
+				m_reg.AddComponents(e, std::move(transform), std::move(mesh));
 			}
 			// camera 
 			{
-				FDB::Core::entity e = reg.CreateEntity();
+				FDB::Core::entity e = m_reg.CreateEntity();
 				FDB::Core::Camera camera;
 				FDB::Core::Transform transform;
 				transform.LookAtDir({ 0,0,-1 });
 				transform.SetPosition({ 0,0,5 });
 
 
-				reg.AddComponents<FDB::Core::Camera, FDB::Core::Transform>(e, std::move(camera), std::move(transform));
+				m_reg.AddComponents<FDB::Core::Camera, FDB::Core::Transform>(e, std::move(camera), std::move(transform));
 			}
 			// light 
 			{
-				FDB::Core::entity e = reg.CreateEntity();
+				FDB::Core::entity e = m_reg.CreateEntity();
 
 				FDB::Core::Light light;
 				light.SetType(FDB::Core::LightType::Point);
@@ -232,12 +380,12 @@
 				light.SetDir(glm::normalize(glm::vec3{ -2,0,-1 }));
 				light.SetColor(FDB::Color::whiteFloat);
 				light.SetIntensity(12450.f);
-				reg.AddComponent(e, std::move(light));
+				m_reg.AddComponent(e, std::move(light));
 
 			}
 			// ui
 			{
-				FDB::Core::entity e = reg.CreateEntity();
+				FDB::Core::entity e = m_reg.CreateEntity();
 
 				FDB::Core::Mesh2D uiMesh;
 				uiMesh.data = &FDB::Core::square;
@@ -249,11 +397,11 @@
 
 				FDB::Core::Transform2D transform;
 
-				reg.AddComponents<>(e, std::move(ui),std::move(uiMesh),std::move(transform));
+				m_reg.AddComponents<>(e, std::move(ui),std::move(uiMesh),std::move(transform));
 			}
 			// text
 			{
-				FDB::Core::entity e = reg.CreateEntity();
+				FDB::Core::entity e = m_reg.CreateEntity();
 
 				FDB::Core::Text text;
 				text.SetText("Hello, World!");
@@ -267,7 +415,7 @@
 
 				FDB::Core::Transform2D transform;
 
-				reg.AddComponents<>(e, std::move(ui), std::move(text), std::move(transform));
+				m_reg.AddComponents<>(e, std::move(ui), std::move(text), std::move(transform));
 			}
 
 			
@@ -286,104 +434,10 @@
 		
 		}
 	public:
-		void Render(FDB::Core::JobPool& pool) override
-		{
-			auto image = m_renderer->GetFrameBuffer();
-			auto viewPort = m_renderer->GetViewPort();
-
-
-			 auto& cams = reg.GetContainer<FDB::Core::Camera>();
-			auto& transforms = reg.GetContainer<FDB::Core::Transform>();
-			auto& meshs = reg.GetContainer<FDB::Core::MeshComp>();
-			auto& uis = reg.GetContainer<FDB::Core::Ui>();
-			auto& transform2ds = reg.GetContainer<FDB::Core::Transform2D>();
-			auto& texts = reg.GetContainer<FDB::Core::Text>();
-			auto& mesh2ds = reg.GetContainer<FDB::Core::Mesh2D>();
-			auto& lights = reg.GetContainer<FDB::Core::Light>();
-			m_pipeline.Setup(viewPort, &image);
-			m_pipeline2D.Setup(viewPort, &image);
-			// base Pipeline
-			{
-				 auto& eS = reg.GetEntitiesView<FDB::Core::Camera, FDB::Core::Transform>();
-				 cams[eS[0]].Update(transforms[eS[0]].GetModelM());
-				 m_pipeline.BindVInData(cams[eS[0]].GetData());
-				 reg.GetEntitiesView<FDB::Core::Light>();
-				 m_lDatas.clear();
-				 for (auto e : eS)
-					 m_lDatas.push_back(lights[e].GetData());
-				 FDB::Render::fragmentShaderData outD{ m_lDatas };
-				 m_pipeline.BindVOutData(outD);
-				 reg.GetEntitiesView<FDB::Core::MeshComp, FDB::Core::Transform>();
-
-					
-				for (auto e : eS)
-				 {
-					 auto& mesh = meshs[e];
-					 bool defaultMat = mesh.mat.empty();
-					 FDB::Core::Material* mat = defaultMat ? nullptr : mesh.mat.data();
-					 for (auto& sub : mesh.mesh->subMeshes)
-					 {
-						if (defaultMat)
-						{
-							m_pipeline.BindVertexData({ transforms[e].GetModelM(),m_baseMaterials });
-							m_pipeline.DrawTile(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), &image, pool);
-						}
-						else
-						{
-							m_pipeline.BindVertexData({ transforms[e].GetModelM(),*mat });
-							m_pipeline.DrawTile(sub.vertices.data(), sub.indices.data(), sub.indices.size(), m_renderer->GetViewPort(), &image, pool);
-							++mat;
-						}
-					 }
-				 }
-				m_pipeline.Rasterize(pool);
-			}
-			// ui pipeline
-			{
-				float aspectRatio = static_cast<float>(viewPort.width) / static_cast<float>(viewPort.height);
-				FDB::Render::UiShaders::PushConstant push;
-				push.aspectRatio = aspectRatio;
-				auto& eS = reg.GetEntitiesView<FDB::Core::Ui, FDB::Core::Transform2D,FDB::Core::Text>();
-
-				for (auto e :eS)
-				{
-					auto& ui = uis[e];
-					auto& transform = transform2ds[e];
-					auto& text = texts[e];
-					push.inColor = ui.GetColor();
-					push.texture1 = text.GetFont()->GetTexture();
-					push.texture2 = text.GetTexture();
-					transform.SetPosition(ui.GetPosNdc(aspectRatio));
-					transform.SetScale(ui.GetScaleNdc(aspectRatio));
-					push.model = transform.GetModel();
-					m_pipeline2D.BindVertexData(push);
-					auto data = text.GetBufferData();
-					m_pipeline2D.DrawTile(data.vertices, data.indices, data.indicesCount, viewPort, &image, pool);
-				}
-				reg.GetEntitiesView<FDB::Core::Ui, FDB::Core::Transform2D, FDB::Core::Mesh2D>();
-				for (auto e : eS)
-				{
-					auto& ui = uis[e];
-					auto& transform = transform2ds[e];
-					auto& mesh2d = mesh2ds[e];
-					push.inColor = ui.GetColor();
-					push.texture1 =m_baseUi;
-					push.texture2 = mesh2d.texture;
-					transform.SetPosition(ui.GetPosNdc(aspectRatio));
-					transform.SetScale(ui.GetScaleNdc(aspectRatio));
-					push.model = transform.GetModel();
-					m_pipeline2D.BindVertexData(push);
-					auto data = mesh2d.GetBufferData();
-					m_pipeline2D.DrawTile(data.vertices, data.indices, data.indicesCount, viewPort, &image, pool);
-				}
-				
-				m_pipeline2D.Rasterize(pool);
-			}
-		}
 		void Update(float dt, FDB::Core::JobPool& pool) override
 		{
-			auto& eS = reg.GetEntitiesView<FDB::Core::Transform,Rotate>();
-			auto& transforms = reg.GetContainer<FDB::Core::Transform>();
+			auto& eS = m_reg.GetEntitiesView<FDB::Core::Transform,Rotate>();
+			auto& transforms = m_reg.GetContainer<FDB::Core::Transform>();
 			auto& tr = transforms[eS[0]];
 
 			tr.Rotate(-0.5f * dt, { 0,0,1 });
@@ -392,22 +446,14 @@
 		}
 	private:
 	
+
+
 		std::unique_ptr<FDB::Core::Mesh> m_SphereMesh;
-		FDB::Core::Texture* m_baseUi = nullptr;
-		std::vector<FDB::Core::lightData_t> m_lDatas;
-		FDB::Core::Material m_baseMaterials;
-		renderPath_t m_pipeline;
-		renderPath2D_t m_pipeline2D;
-
-
-		FDB::Core::Registry reg;
 	};
 		//	P(1, 1, 1), P(-1, 1, 1),
 		//	{ 0.f, 1.f, 0.f, 1.f });
 
 
-
-	
 	int main(int argc, char* argv[])
 	{
 		std::filesystem::path path = argv[0];

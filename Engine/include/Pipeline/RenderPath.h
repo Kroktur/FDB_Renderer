@@ -183,11 +183,11 @@ namespace FDB::Pipeline
 
 		void Setup(const viewPort_t& viewPort, FrameBuffer* imageData)
 		{
-			if (m_viewPort != viewPort)
+			if (m_viewPort != viewPort || imageData != m_image)
 				GenerateTile(viewPort, imageData);
 			ClearTiles();
 		}
-		void DrawTile(vertex_buffer_t vBuffer, index_buffer_t iBuffer, std::size_t indexCount, const viewPort_t& viewPort,  FrameBuffer* imageData, Core::jobPool_t& pool)
+		void DrawTile(vertex_buffer_t vBuffer, index_buffer_t iBuffer, std::size_t indexCount)
 		{
 			
 
@@ -216,9 +216,9 @@ namespace FDB::Pipeline
 				
 
 				for (std::size_t j = 1; j + 1 < m_poly.size(); ++j) {
-					VertexOutData a = RenderPath::Screen(RenderPath::Perspective(m_poly[0]), viewPort);
-					VertexOutData b = RenderPath::Screen(RenderPath::Perspective(m_poly[j]), viewPort);
-					VertexOutData c = RenderPath::Screen(RenderPath::Perspective(m_poly[j + 1]), viewPort);
+					VertexOutData a = RenderPath::Screen(RenderPath::Perspective(m_poly[0]), m_viewPort);
+					VertexOutData b = RenderPath::Screen(RenderPath::Perspective(m_poly[j]), m_viewPort);
+					VertexOutData c = RenderPath::Screen(RenderPath::Perspective(m_poly[j + 1]), m_viewPort);
 
 					auto result = cullType::ValidArea(std::array<glm::vec<4, float>, 3>{ a.position, b.position, c.position });
 					if (!result.valid)
@@ -288,7 +288,7 @@ namespace FDB::Pipeline
 
 
 
-		void Rasterize(Core::jobPool_t& pool)
+		void End(Core::jobPool_t& pool)
 		{
 			
 			for (int y = 0; y < m_grid.tileCount.y; ++y) {
@@ -315,7 +315,8 @@ namespace FDB::Pipeline
 		void GenerateTile(const viewPort_t& viewPort, FrameBuffer* frameBuffer)
 		{
 			m_viewPort = viewPort;
-			m_grid = TileGrid<32>(viewPort, frameBuffer);
+			m_image = frameBuffer;
+			m_grid = TileGrid<32>(m_viewPort, m_image);
 
 		}
 		void ClearTiles()
@@ -431,9 +432,8 @@ namespace FDB::Pipeline
 			{
 				VertexOutData P = copy[i];
 				VertexOutData Q = copy[(i + 1) % copy.size()];
-				glm::vec<4, float> p = P.position, q = Q.position;
 
-				bool pIn = RenderPath::VertexInPlane<I>(p), qIn = RenderPath::VertexInPlane<I>(q);
+				bool pIn = RenderPath::VertexInPlane<I>(P.position), qIn = RenderPath::VertexInPlane<I>(Q.position);
 				if (pIn)
 				{
 					poly.push_back(P);
@@ -441,11 +441,11 @@ namespace FDB::Pipeline
 
 				if (pIn != qIn)
 				{
-					float dp = RenderPath::VertexDistPlane<I>(p), dq = RenderPath::VertexDistPlane<I>(q);
+					float dp = RenderPath::VertexDistPlane<I>(P.position), dq = RenderPath::VertexDistPlane<I>(Q.position);
 					VertexOutData result;
 					result.vertex = AttributeMix<vertexOut>::Mix(P.vertex, Q.vertex, dp / (dp - dq));
 					result.position = interpret_t::GetPosition(result.vertex);
-					poly.push_back(result);
+					poly.push_back(std::move(result));
 				}
 
 			}
@@ -490,6 +490,7 @@ namespace FDB::Pipeline
 
 		viewPort_t m_viewPort;
 		TileGrid<32> m_grid = {};
+		FrameBuffer* m_image = nullptr;
 	};
 
 
