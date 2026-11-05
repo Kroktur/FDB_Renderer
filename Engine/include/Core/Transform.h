@@ -1,5 +1,5 @@
 #ifndef FDBCORETRANSFORMF
-#define FDBCORETRANSFORM
+#define FDBCORETRANSFORMF
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
