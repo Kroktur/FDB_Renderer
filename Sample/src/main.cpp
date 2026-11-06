@@ -84,6 +84,7 @@
 #include "Scene/DogFIghtDemo.h"
 #include "Scene/Sun.h"
 #include "Scene/SplineCurve.h"
+#include "Scene/AsteroidField.h"
 
 	static constexpr std::int32_t renderWidth = 640 * 2;
 	static constexpr std::int32_t renderHeight = 360 * 2;
@@ -139,7 +140,7 @@
 		FDB::Core::FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
 		FDB::Scene::GameLoop loop("test", { windowWidth,windowHeight }, { renderWidth, renderHeight });
 		loop.AddScene(std::make_unique<FDB::Demo::DogFightScene>(), true);
-		loop.AddScene(std::make_unique<FDB::Scene::BasicScene>(), false);
+		loop.AddScene(std::make_unique<FDB::Demo2::AsteroidField>(), false);
 		loop.Loop();
 	}
 
