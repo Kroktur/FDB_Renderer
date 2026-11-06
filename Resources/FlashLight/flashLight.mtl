@@ -1,0 +1,26 @@
+# Blender 5.2.3 LTS MTL File: 'pastic_torch_6v_4k.blend'
+# www.blender.org
+
+newmtl pastic_torch_6v
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd C:/Users/arthu/Downloads/pastic_torch_6v_4k.blend/textures/pastic_torch_6v_diff_4k.jpg
+map_Ns C:/Users/arthu/Downloads/pastic_torch_6v_4k.blend/textures/pastic_torch_6v_rough_4k.exr
+map_refl C:/Users/arthu/Downloads/pastic_torch_6v_4k.blend/textures/pastic_torch_6v_metal_4k.exr
+map_Bump -bm 1.000000 C:/Users/arthu/Downloads/pastic_torch_6v_4k.blend/textures/pastic_torch_6v_nor_gl_4k.exr
+
+newmtl pastic_torch_6v_glass
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 2
+map_Kd C:/Users/arthu/Downloads/pastic_torch_6v_4k.blend/textures/pastic_torch_6v_diff_4k.jpg
+map_Ns C:/Users/arthu/Downloads/pastic_torch_6v_4k.blend/textures/pastic_torch_6v_rough_4k.exr
+map_refl C:/Users/arthu/Downloads/pastic_torch_6v_4k.blend/textures/pastic_torch_6v_metal_4k.exr
+map_d C:/Users/arthu/Downloads/pastic_torch_6v_4k.blend/textures/pastic_torch_6v_alpha_4k.png
+map_Bump -bm 1.000000 C:/Users/arthu/Downloads/pastic_torch_6v_4k.blend/textures/pastic_torch_6v_nor_gl_4k.exr

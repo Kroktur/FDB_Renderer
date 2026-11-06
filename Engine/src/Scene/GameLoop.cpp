@@ -15,7 +15,7 @@ void FDB::Scene::GameLoop::AddScene(std::unique_ptr<BasicScene> scene, bool main
 	m_scenes.push_back(std::move(scene));
 	if (main)
 	{
-		m_currentScene = m_scenes.back().get();
+		m_sceneChanged = true;
 		m_currentSceneId = m_scenes.size() - 1;
 	}
 }
@@ -31,7 +31,7 @@ FDB::Scene::GameLoop::~GameLoop()
 
 void FDB::Scene::GameLoop::Loop()
 {
-	if (!m_currentScene)
+	if (m_scenes.empty())
 		return;
 
 	std::uint64_t frameCount = 0;
@@ -84,8 +84,13 @@ void FDB::Scene::GameLoop::ChangeSceneEvent(const FDB::Scene::ChangeSceneEvent& 
 
 void FDB::Scene::GameLoop::ChangeScene()
 {
-	if (!m_currentScene)
+	if (!m_sceneChanged)
 		return;
+
+	if (m_currentScene)
+		m_currentScene->OnDisable();
+
 	m_sceneChanged = false;
 	m_currentScene = m_scenes[m_currentSceneId].get();
+	m_currentScene->OnEnable();
 }

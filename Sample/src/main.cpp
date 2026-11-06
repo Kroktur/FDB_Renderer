@@ -82,6 +82,7 @@
 #include "Scene/BaseScene.h"
 #include "Scene/BaseSceneRenderer.h"
 #include "Scene/DogFIghtDemo.h"
+#include "Scene/PBRScene.h"
 #include "Scene/Sun.h"
 #include "Scene/SplineCurve.h"
 
@@ -117,7 +118,6 @@
 #include "atomic"
 
 
-
 	
 
 	
@@ -138,7 +138,7 @@
 		std::filesystem::path path = argv[0];
 		FDB::Core::FilePathSystem::AddFilePath(path.parent_path().parent_path().parent_path().parent_path().parent_path() / "Resources");
 		FDB::Scene::GameLoop loop("test", { windowWidth,windowHeight }, { renderWidth, renderHeight });
-		loop.AddScene(std::make_unique<FDB::Demo::DogFightScene>(), true);
+		loop.AddScene(std::make_unique<FDB::Demo::PBRScene>(), true);
 		loop.AddScene(std::make_unique<FDB::Scene::BasicScene>(), false);
 		loop.Loop();
 	}

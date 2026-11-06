@@ -43,6 +43,15 @@ namespace FDB::Scene
 
 		[[nodiscard]] std::uint64_t GetSceneId() const;
 
+		virtual void OnEnable()
+		{
+			
+		}
+		virtual void OnDisable()
+		{
+			
+		}
+
 	protected:
 		virtual void InitScene();
 		FDB::Render::SDLGraphicPipeline* m_renderer = nullptr;
