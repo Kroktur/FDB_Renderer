@@ -1,0 +1,14 @@
+# Blender 5.2.3 LTS MTL File: 'mousetrap_4k.blend'
+# www.blender.org
+
+newmtl mousetrap
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd C:/Users/arthu/Downloads/mousetrap_4k.blend/textures/mousetrap_diff_4k.jpg
+map_Ns C:/Users/arthu/Downloads/mousetrap_4k.blend/textures/mousetrap_rough_4k.exr
+map_refl C:/Users/arthu/Downloads/mousetrap_4k.blend/textures/mousetrap_metal_4k.exr
+map_Bump -bm 1.000000 C:/Users/arthu/Downloads/mousetrap_4k.blend/textures/mousetrap_nor_gl_4k.exr

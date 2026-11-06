@@ -120,24 +120,7 @@ namespace FDB::Scene
 				float aspectRatio = static_cast<float>(viewPort.width) / static_cast<float>(viewPort.height);
 				FDB::Render::UiShaders::PushConstant push;
 				push.aspectRatio = aspectRatio;
-				auto& eS = m_reg.GetEntitiesView<FDB::Core::Ui, FDB::Core::Transform2D, FDB::Core::Text>();
-
-				for (auto e : eS)
-				{
-					auto& ui = uis[e];
-					auto& transform = transform2ds[e];
-					auto& text = texts[e];
-					push.inColor = ui.GetColor();
-					push.texture1 = text.GetFont()->GetTexture();
-					push.texture2 = text.GetTexture();
-					transform.SetPosition(ui.GetPosNdc(aspectRatio));
-					transform.SetScale(ui.GetScaleNdc(aspectRatio));
-					push.model = transform.GetModel();
-					m_pipeline2D.BindVertexData(push);
-					auto data = text.GetBufferData();
-					m_pipeline2D.DrawTile(data.vertices, data.indices, data.indicesCount);
-				}
-				m_reg.GetEntitiesView<FDB::Core::Ui, FDB::Core::Transform2D, FDB::Core::Mesh2D>();
+				auto& eS = m_reg.GetEntitiesView<FDB::Core::Ui, FDB::Core::Transform2D, FDB::Core::Mesh2D>();
 				for (auto e : eS)
 				{
 					auto& ui = uis[e];
@@ -151,6 +134,22 @@ namespace FDB::Scene
 					push.model = transform.GetModel();
 					m_pipeline2D.BindVertexData(push);
 					auto data = mesh2d.GetBufferData();
+					m_pipeline2D.DrawTile(data.vertices, data.indices, data.indicesCount);
+				}
+				m_reg.GetEntitiesView<FDB::Core::Ui, FDB::Core::Transform2D, FDB::Core::Text>();
+				for (auto e : eS)
+				{
+					auto& ui = uis[e];
+					auto& transform = transform2ds[e];
+					auto& text = texts[e];
+					push.inColor = ui.GetColor();
+					push.texture1 = text.GetFont()->GetTexture();
+					push.texture2 = text.GetTexture();
+					transform.SetPosition(ui.GetPosNdc(aspectRatio));
+					transform.SetScale(ui.GetScaleNdc(aspectRatio));
+					push.model = transform.GetModel();
+					m_pipeline2D.BindVertexData(push);
+					auto data = text.GetBufferData();
 					m_pipeline2D.DrawTile(data.vertices, data.indices, data.indicesCount);
 				}
 

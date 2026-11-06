@@ -81,7 +81,7 @@ void FDB::Core::Text::Upload()
 	m_vertices.clear();
 	m_indices.clear();
 	// create the temp vector for vertices and index
-	if (m_message.empty())
+	if (m_message.size() == 0)
 	{
 		return;
 	}

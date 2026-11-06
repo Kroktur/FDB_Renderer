@@ -25,6 +25,16 @@ namespace FDB::Demo
 
 	public:
 	protected:
+		void OnEnable() override
+		{
+			timer.Resume();
+			vaisseau.Play();
+		}
+		void OnDisable() override
+		{
+			timer.Reset();
+			vaisseau.Stop();
+		}
 		void InitScene() override
 		{
 			BaseRenderScene::InitScene();
@@ -33,6 +43,12 @@ namespace FDB::Demo
 			material.normalMap = FDB::Core::textureLoader_t::Load("Textures/Normal.png");
 			material.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Emissive.png");
 			material.OMRMap = FDB::Core::textureLoader_t::Load("Textures/ORM.png");
+
+			FDB::Core::Material moonMat;
+			moonMat.baseColor = FDB::Core::textureLoader_t::Load("Textures/Moon/BaseColor.jpg");
+			moonMat.normalMap = FDB::Core::textureLoader_t::Load("Textures/Moon/Normal.jpg");
+			moonMat.emissiveMap = m_baseMaterials.emissiveMap;
+			moonMat.OMRMap = FDB::Core::textureLoader_t::Load("Textures/Moon/ORM.jpg");
 			//// mesh 1
 			//{
 			//	FDB::Core::entity e = m_reg.CreateEntity();
@@ -85,11 +101,11 @@ namespace FDB::Demo
 				FDB::Core::entity e = m_reg.CreateEntity();
 				FDB::Core::Transform transform;
 				FDB::Core::MeshComp mesh;
-				transform.SetPosition(glm::vec3{ 15,-2,30 });
+				transform.SetPosition(glm::vec3{ 15 - 3.82529,-2,22.2195 });
 				transform.ScaleUp({ 8.f,8.f,8.f });
 				mesh.mesh = FDB::Core::meshLoader_t::Load("sphere.obj");
 				for (std::size_t i = 0; i < mesh.mesh->subMeshes.size(); ++i)
-					mesh.mat.push_back(m_baseMaterials);
+					mesh.mat.push_back(moonMat);
 				m_reg.AddComponents(e, std::move(transform), std::move(mesh));
 			}
 			auto makeShip = [&](glm::vec3 scale, std::vector<glm::vec3> points, float speed, float startDistance)
@@ -147,6 +163,8 @@ namespace FDB::Demo
 				FDB::Core::Transform transform;
 				transform.LookAtDir({ 0.5f,0,-1 });
 				transform.SetPosition({ 5,3,30 });
+				transform.SetPosition({ -3.82529 ,3.19342,22.2195 });
+
 
 				m_reg.AddComponents<FDB::Core::Camera, FDB::Core::Transform>(e, std::move(camera), std::move(transform));
 			}
@@ -201,12 +219,17 @@ namespace FDB::Demo
 				light.SetType(FDB::Core::LightType::Dir);
 				//light.SetPos({ 10, 0, -50 });
 				light.SetDir(glm::normalize(glm::vec3{ 0,0,1 }));
-				light.SetColor(FDB::Color::RGBAFloat(0.922, 0.906, 0.039, 1.0f));
+				light.SetColor(FDB::Color::whiteFloat);
 				light.SetIntensity(30.f);
 				SunLight sunLight;
 				m_reg.AddComponents(e, std::move(light), std::move(sunLight));
 
 			}
+
+
+			vaisseau.SetWav(*FDB::Audio::wavManager_t::Load("Sound/vaisseau.mp3"));
+			vaisseau.SetLoop(true);
+			
 			//// ui
 			//{
 			//	FDB::Core::entity e = m_reg.CreateEntity();
@@ -344,11 +367,18 @@ namespace FDB::Demo
 			{
 				FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::Notify(FDB::Scene::ChangeSceneEvent{ 1 });
 			}
+			camTransform.Move({-0.4f * dt,0,0.04 * dt});
+			camTransform.Rotate(-0.02 * dt, { 0,1,0 });
+
+			if (KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(timer.GetTime()).count() >= 10)
+			{
+				FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::Notify({ 4});
+			}
 		}
 	private:
 
-
-
+		FDB::Audio::Wav vaisseau;
+		KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
 		std::unique_ptr<FDB::Core::Mesh> m_SphereMesh;
 	};
 }

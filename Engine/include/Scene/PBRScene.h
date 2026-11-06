@@ -18,6 +18,11 @@ namespace FDB::Demo
 			float angle;
 			glm::vec3 pos;
 		};
+	~PBRScene() override
+	{
+		if (radio.IsPlaying())
+			radio.Stop();
+	}
 	protected:
 		void InitScene() override
 		{
@@ -284,8 +289,9 @@ namespace FDB::Demo
 			if (lampWav.IsPlaying())
 				lampWav.Stop();
 
-			if (radio.IsPlaying())
-				radio.Stop();
+		
+
+			timer.Reset();
 			std::cout << "quit pbr scene" << std::endl;
 		}
 	public:
@@ -352,7 +358,7 @@ namespace FDB::Demo
 			// TODO changeScene
 			if (KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(timer.GetTime()).count() >= 20)
 			{
-				//FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::Notify({ 1 });
+				FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::Notify({ 2 });
 			}
 
 
@@ -407,7 +413,7 @@ namespace FDB::Demo
 			}
 			if (keys[SDL_SCANCODE_P])
 			{
-				FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::Notify(FDB::Scene::ChangeSceneEvent{ 1 });
+				FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::Notify(FDB::Scene::ChangeSceneEvent{  2});
 			}
 		}
 	private:

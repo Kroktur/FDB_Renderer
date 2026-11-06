@@ -23,7 +23,7 @@ namespace FDB::Scene
 {
 	struct ChangeSceneEvent
 	{
-		std::uint64_t sceneId;
+		std::int64_t sceneId;
 	};
 
 	struct GameLoop;

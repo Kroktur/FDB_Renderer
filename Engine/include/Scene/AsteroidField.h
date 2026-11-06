@@ -17,7 +17,7 @@
 #include "Core/relaxation.h"
 #include "Core/CreateSphere.h"
 
-namespace FDB::Demo2 {
+namespace FDB::Demo {
 
 	struct polaris {};
 
@@ -35,16 +35,16 @@ namespace FDB::Demo2 {
 		{
 			SplineCurve curve;
 			float distance = 0.f;
-			float speed = 3.f;
+			float speed = 10.f;
 			std::uint64_t entity = 0;  
 		};
 		std::vector<ShipPath> m_paths;
 		bool  m_followSpline = true;
 		bool  m_toggleWasDown = false;
 
-		static constexpr int   kAsteroidCount = 5;
+		static constexpr int   kAsteroidCount = 20;
 		static constexpr float kHalfWidth = 3.f;   
-		static constexpr float kHalfHeight = 1.f;   
+		static constexpr float kHalfHeight = 2.f;   
 		static constexpr float kMargin = 2.f;  
 		static constexpr float kRange = kHalfWidth + kMargin;
 		static constexpr float kHeight = kHalfHeight;
@@ -74,7 +74,15 @@ namespace FDB::Demo2 {
 			a.spinAxis = glm::normalize(glm::vec3{ Rand(-1.f, 1.f), Rand(-1.f, 1.f), Rand(-1.f, 1.f) } + glm::vec3{ 0.01f });
 			a.spinSpeed = Rand(0.3f, 1.5f);
 		}
-
+		void OnEnable() override
+		{
+			timer.Resume();
+			polaSound.Play();
+		}
+		void OnDisable() override
+		{
+			polaSound.Stop();
+		}
 	public:
 	protected:
 		void InitScene() override
@@ -86,18 +94,22 @@ namespace FDB::Demo2 {
 			material.normalMap = FDB::Core::textureLoader_t::Load("Textures/Normal.png");
 			material.emissiveMap = FDB::Core::textureLoader_t::Load("Textures/Emissive.png");
 			material.OMRMap = FDB::Core::textureLoader_t::Load("Textures/ORM.png");
-
+			FDB::Core::Material moonMat;
+			moonMat.baseColor = FDB::Core::textureLoader_t::Load("Textures/Moon/BaseColor.jpg");
+			moonMat.normalMap = FDB::Core::textureLoader_t::Load("Textures/Moon/Normal.jpg");
+			moonMat.emissiveMap = m_baseMaterials.emissiveMap;
+			moonMat.OMRMap = FDB::Core::textureLoader_t::Load("Textures/Moon/ORM.jpg");
 			// Polaris
 			{
 				FDB::Core::entity e = m_reg.CreateEntity();
 				FDB::Core::Transform transform;
-
 				transform.ScaleUp({ 0.5f,0.5f,0.5f });
 				FDB::Core::MeshComp mesh;
 				mesh.mesh = FDB::Core::meshLoader_t::Load("Polaris.obj");
 				for (std::size_t i = 0; i < mesh.mesh->subMeshes.size(); ++i)
 					mesh.mat.push_back(material);
 				transform.SetRotation({ 0, -1, 0 });
+				transform.Rotate(glm::pi<float>() / 10.f, { 1,0,0 });
 				polaris r{};
 				m_reg.AddComponents(e, std::move(transform), std::move(mesh), std::move(r));
 			}
@@ -140,7 +152,7 @@ namespace FDB::Demo2 {
 				FDB::Core::Transform transform;
 				FDB::Core::MeshComp mesh;
 				mesh.mesh = m_SphereMesh.get();
-
+				mesh.mat.push_back(moonMat);
 				float s = Rand(0.05f, 0.15f);
 				transform.ScaleUp(glm::vec3{ s });
 
@@ -194,7 +206,7 @@ namespace FDB::Demo2 {
 				FDB::Core::Light light;
 				light.SetType(FDB::Core::LightType::Dir);
 				light.SetDir(glm::normalize(glm::vec3{ 0,0,1 }));
-				light.SetColor(FDB::Color::RGBAFloat(0.922, 0.906, 0.039, 1.0f));
+				light.SetColor(FDB::Color::whiteFloat);
 				light.SetIntensity(100.f);
 				SunLight sunLight;
 				m_reg.AddComponents(e, std::move(light), std::move(sunLight));
@@ -215,6 +227,9 @@ namespace FDB::Demo2 {
 
 			//	m_reg.AddComponents<>(e, std::move(ui), std::move(uiMesh), std::move(transform));
 			//}
+
+			polaSound.SetWav(*FDB::Audio::wavManager_t::Load("Sound/pola.mp3"));
+			polaSound.SetLoop(true);
 		}
 
 	public:
@@ -294,7 +309,13 @@ namespace FDB::Demo2 {
 			}
 			if (keys[SDL_SCANCODE_P])
 			{
-				FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::Notify(FDB::Scene::ChangeSceneEvent{ 1 });
+				FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::Notify(FDB::Scene::ChangeSceneEvent{ -1 });
+			}
+
+
+			if (KTR::chrono::Function::DurationCast<KTR::duration::seconds_type<float>>(timer.GetTime()).count() >= 10)
+			{
+				FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::Notify({ -1 });
 			}
 		}
 
@@ -304,7 +325,9 @@ namespace FDB::Demo2 {
 		}
 
 	private:
+		KTR::chrono::Timer<KTR::chrono::native_clock_type::high_resolution> timer;
 		std::unique_ptr<FDB::Core::Mesh> m_SphereMesh;
+		FDB::Audio::Wav polaSound;
 	};
 }
 #endif // !ASTEROIDFIELD

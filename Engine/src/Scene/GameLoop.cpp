@@ -22,8 +22,10 @@ void FDB::Scene::GameLoop::AddScene(std::unique_ptr<BasicScene> scene, bool main
 
 FDB::Scene::GameLoop::~GameLoop()
 {
+
 	FDB::Pipeline::EventBus<FDB::Scene::ChangeSceneEvent>::UnSubscribe(m_handle);
 	m_window.CloseWindow();
+	m_scenes.clear();
 	FDB::Sdl::Application::Destroy();
 	FDB::Audio::Soloud::Destroy();
 
@@ -45,6 +47,8 @@ void FDB::Scene::GameLoop::Loop()
 	while (!FDB::Sdl::Application::ShouldQuit() && !m_window.ShouldClose())
 	{
 		this->ChangeScene();
+		if (m_currentSceneId == -1)
+			break;
 		FDB::Sdl::Application::PollEvent<FDB::Sdl::Event::DefaultManager::Process>();
 		{
 			++frameCount;
@@ -89,6 +93,9 @@ void FDB::Scene::GameLoop::ChangeScene()
 
 	if (m_currentScene)
 		m_currentScene->OnDisable();
+
+	if (m_currentSceneId == -1)
+		return;
 
 	m_sceneChanged = false;
 	m_currentScene = m_scenes[m_currentSceneId].get();
