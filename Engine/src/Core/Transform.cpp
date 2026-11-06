@@ -106,7 +106,7 @@ namespace FDB::Core
 	{
 		if (m_dirty)
 		{
-			m_mat = glm::translate(glm::mat4(1.0f), m_position) * glm::scale(glm::mat4(1.0f), m_scale) * glm::toMat4(m_quat);
+			m_mat = glm::translate(glm::mat4(1.0f), m_position) *  glm::toMat4(m_quat) * glm::scale(glm::mat4(1.0f), m_scale);
 			m_dirty = false;
 		}
 		return m_mat;
