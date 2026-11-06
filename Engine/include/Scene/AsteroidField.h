@@ -165,7 +165,7 @@ namespace FDB::Demo2 {
 				FDB::Core::entity e = m_reg.CreateEntity();
 
 				FDB::Core::Light light;
-				light.SetType(FDB::Core::LightType::Point);
+				light.SetType(FDB::Core::LightType::Dir);
 				light.SetPos(-m_dir * 1.5f + m_up * 0.8f);   // devant Polaris, côté caméra, un peu en hauteur
 				light.SetColor(FDB::Color::whiteFloat);
 				light.SetIntensity(20.f);
@@ -199,22 +199,22 @@ namespace FDB::Demo2 {
 				SunLight sunLight;
 				m_reg.AddComponents(e, std::move(light), std::move(sunLight));
 			}
-			// ui
-			{
-				FDB::Core::entity e = m_reg.CreateEntity();
+			//// ui
+			//{
+			//	FDB::Core::entity e = m_reg.CreateEntity();
 
-				FDB::Core::Mesh2D uiMesh;
-				uiMesh.data = &FDB::Core::square;
-				uiMesh.texture = FDB::Core::textureLoader_t::Load("PBC.png");
+			//	FDB::Core::Mesh2D uiMesh;
+			//	uiMesh.data = &FDB::Core::square;
+			//	uiMesh.texture = FDB::Core::textureLoader_t::Load("PBC.png");
 
-				FDB::Core::Ui ui;
-				ui.SetPosition({ 300,300 });
-				ui.SetScale({ 150 ,150 });
+			//	FDB::Core::Ui ui;
+			//	ui.SetPosition({ 300,300 });
+			//	ui.SetScale({ 150 ,150 });
 
-				FDB::Core::Transform2D transform;
+			//	FDB::Core::Transform2D transform;
 
-				m_reg.AddComponents<>(e, std::move(ui), std::move(uiMesh), std::move(transform));
-			}
+			//	m_reg.AddComponents<>(e, std::move(ui), std::move(uiMesh), std::move(transform));
+			//}
 		}
 
 	public:

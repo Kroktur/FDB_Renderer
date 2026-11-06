@@ -207,22 +207,22 @@ namespace FDB::Demo
 				m_reg.AddComponents(e, std::move(light), std::move(sunLight));
 
 			}
-			// ui
-			{
-				FDB::Core::entity e = m_reg.CreateEntity();
+			//// ui
+			//{
+			//	FDB::Core::entity e = m_reg.CreateEntity();
 
-				FDB::Core::Mesh2D uiMesh;
-				uiMesh.data = &FDB::Core::square;
-				uiMesh.texture = FDB::Core::textureLoader_t::Load("PBC.png");
+			//	FDB::Core::Mesh2D uiMesh;
+			//	uiMesh.data = &FDB::Core::square;
+			//	uiMesh.texture = FDB::Core::textureLoader_t::Load("PBC.png");
 
-				FDB::Core::Ui ui;
-				ui.SetPosition({ 300,300 });
-				ui.SetScale({ 150 ,150 });
+			//	FDB::Core::Ui ui;
+			//	ui.SetPosition({ 300,300 });
+			//	ui.SetScale({ 150 ,150 });
 
-				FDB::Core::Transform2D transform;
+			//	FDB::Core::Transform2D transform;
 
-				m_reg.AddComponents<>(e, std::move(ui), std::move(uiMesh), std::move(transform));
-			}
+			//	m_reg.AddComponents<>(e, std::move(ui), std::move(uiMesh), std::move(transform));
+			//}
 			// text
 			{
 				//FDB::Core::entity e = m_reg.CreateEntity();
