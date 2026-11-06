@@ -85,6 +85,7 @@
 #include "Scene/PBRScene.h"
 #include "Scene/Sun.h"
 #include "Scene/SplineCurve.h"
+#include "Scene/AsteroidField.h"
 
 	static constexpr std::int32_t renderWidth = 640 * 2;
 	static constexpr std::int32_t renderHeight = 360 * 2;
